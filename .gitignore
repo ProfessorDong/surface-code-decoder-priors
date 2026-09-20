@@ -15,6 +15,12 @@
 !/simulation/tests/__init__.py
 !/simulation/tests/test_prx_*.py
 
+# ---- the checking script: re-derives every quoted number from the tables
+!/manuscript/
+/manuscript/*
+!/manuscript/verify_numbers.py
+!/manuscript/make_tables.py
+
 # ---- results: tables, manifests and logs ------------------------------
 !/research/
 /research/*

@@ -60,7 +60,16 @@ Long runs hold a `flock` so that two copies cannot race on the same output files
 
 The result tables in `research/prx_quantum/results` are complete: every number in the
 accompanying paper is re-derived from them by a checking script that fails loudly on
-any mismatch.
+any mismatch. That script is included, and runs without the paper:
+
+```bash
+python manuscript/verify_numbers.py     # recomputes every quoted number from the tables
+python manuscript/make_tables.py        # rebuilds the paper's table bodies from the same data
+```
+
+No number in the paper is typed by hand; each is either recomputed here or the check
+fails. The manuscript source itself is not distributed, so the checks that also require
+a quoted phrase to appear in the text report themselves as skipped.
 
 Two things are deliberately not in this repository:
 
