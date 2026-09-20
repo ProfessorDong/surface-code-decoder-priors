@@ -1,0 +1,31 @@
+{
+  "base_seed": 20260920,
+  "cfg": {
+    "n_test": 100000
+  },
+  "channels": [],
+  "code_hash": "a1c597104181e67b5bfa707d63bf04ed79b32d6c8236147c771cd42a2fb2fb82",
+  "created_utc": "2026-09-18T02:45:31Z",
+  "experiment": "hetero_seeds",
+  "n_tasks": 6,
+  "p": 0.003,
+  "seeds": [
+    1,
+    2,
+    3
+  ],
+  "sigmas": [
+    1.0
+  ],
+  "versions": {
+    "numpy": "2.2.5",
+    "pandas": "3.0.1",
+    "platform": "Linux-6.11.0-29-generic-x86_64-with-glibc2.39",
+    "pymatching": "2.3.1",
+    "python": "3.12.9",
+    "scipy": "1.15.3",
+    "stim": "1.15.0",
+    "torch": "2.7.0+cu126",
+    "torch_geometric": "2.7.0"
+  }
+}

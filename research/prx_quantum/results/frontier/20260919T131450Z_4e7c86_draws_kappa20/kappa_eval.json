@@ -1,0 +1,10 @@
+{
+ "criterion_kappa5": 0.06326880601212648,
+ "criterion_kappa_star": 0.05170556257906271,
+ "difference": -0.011563243433063766,
+ "diff_lo95": -0.013486523782147136,
+ "diff_hi95": -0.009764762485276024,
+ "conditions": 120,
+ "cells_better": 631,
+ "cells_worse": 275
+}

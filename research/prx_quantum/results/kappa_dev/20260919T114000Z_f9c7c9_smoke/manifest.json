@@ -1,0 +1,52 @@
+{
+  "base_seed": 20260919,
+  "cfg": {
+    "n_pool": 300000,
+    "n_test": 200000,
+    "replicates": 5
+  },
+  "code_hash": "f7ddbbcd3305afff590964d7f31e120850b1d03ca2e7669f59b0c73da68a6596",
+  "conditions": [
+    "si1000|d3|T3|Z|p0.0015|{\"het_seed\": 301, \"p_nominal\": 0.001, \"sigma_h\": 0.6, \"variant\": \"google2025\"}",
+    "si1000|d3|T3|Z|p0.0015|{\"het_seed\": 302, \"p_nominal\": 0.001, \"sigma_h\": 0.6, \"variant\": \"google2025\"}"
+  ],
+  "created_utc": "2026-09-19T11:40:00Z",
+  "experiment": "kappa_dev",
+  "kappas": [
+    0.0,
+    0.5,
+    1.0,
+    2.0,
+    5.0,
+    10.0,
+    20.0,
+    50.0,
+    100.0,
+    200.0,
+    500.0,
+    1000.0
+  ],
+  "n_grid": [
+    100,
+    300,
+    1000,
+    3000,
+    10000,
+    30000,
+    100000,
+    300000
+  ],
+  "protocol": "preregistration/kappa_tuning_protocol.md",
+  "protocol_sha256": "721e00d921bdc76d3d6b06b5ce5b29db0aa67e40274f82a7b2257874d0643b2b",
+  "versions": {
+    "numpy": "2.2.5",
+    "pandas": "3.0.1",
+    "platform": "Linux-6.11.0-29-generic-x86_64-with-glibc2.39",
+    "pymatching": "2.3.1",
+    "python": "3.12.9",
+    "scipy": "1.15.3",
+    "stim": "1.15.0",
+    "torch": "2.7.0+cu126",
+    "torch_geometric": "2.7.0"
+  }
+}

@@ -1,0 +1,277 @@
+{
+  "base_seed": 20260919,
+  "cfg": {
+    "block_shots": 100,
+    "class_grid": [
+      0.25,
+      0.32089221052812905,
+      0.41188724311051644,
+      0.528685631720282,
+      0.6786044041487267,
+      0.8710354692856351,
+      1.118033988749895,
+      1.4350735923821407,
+      1.8420157493201934,
+      2.3643540225079396,
+      3.0348111550145864,
+      3.895389040272221,
+      5.0
+    ],
+    "density_shots": 20000,
+    "half_widths": [
+      1,
+      2,
+      5,
+      10
+    ],
+    "kappa": 5.0,
+    "labeled": true,
+    "n_blocks": 600,
+    "n_grid": [
+      300,
+      1000,
+      3000,
+      10000,
+      30000,
+      100000
+    ],
+    "n_pool": 100000,
+    "n_test": 1000000,
+    "recovery_blocks": 50,
+    "replicates": 5,
+    "sweeps": 2,
+    "warmup_blocks": 200,
+    "windows": [
+      5,
+      20,
+      50,
+      200
+    ]
+  },
+  "code_hash": "2dcc4f65be0ea130a6c5fd69ea297b5c9501614f29d76dabf11309de3972591b",
+  "created_utc": "2026-09-18T00:28:56Z",
+  "experiment": "drift_within",
+  "tasks": [
+    {
+      "T": 100,
+      "base_seed": 20260919,
+      "d": 3,
+      "p0": 0.0015,
+      "schedule": "constant"
+    },
+    {
+      "T": 100,
+      "base_seed": 20260919,
+      "d": 3,
+      "p0": 0.0015,
+      "schedule": "sinusoid"
+    },
+    {
+      "T": 100,
+      "base_seed": 20260919,
+      "d": 3,
+      "p0": 0.0015,
+      "schedule": "step"
+    },
+    {
+      "T": 100,
+      "base_seed": 20260919,
+      "d": 3,
+      "p0": 0.0015,
+      "schedule": "burst"
+    },
+    {
+      "T": 100,
+      "base_seed": 20260919,
+      "d": 3,
+      "p0": 0.0015,
+      "schedule": "ou"
+    },
+    {
+      "T": 100,
+      "base_seed": 20260919,
+      "d": 3,
+      "p0": 0.003,
+      "schedule": "constant"
+    },
+    {
+      "T": 100,
+      "base_seed": 20260919,
+      "d": 3,
+      "p0": 0.003,
+      "schedule": "sinusoid"
+    },
+    {
+      "T": 100,
+      "base_seed": 20260919,
+      "d": 3,
+      "p0": 0.003,
+      "schedule": "step"
+    },
+    {
+      "T": 100,
+      "base_seed": 20260919,
+      "d": 3,
+      "p0": 0.003,
+      "schedule": "burst"
+    },
+    {
+      "T": 100,
+      "base_seed": 20260919,
+      "d": 3,
+      "p0": 0.003,
+      "schedule": "ou"
+    },
+    {
+      "T": 100,
+      "base_seed": 20260919,
+      "d": 5,
+      "p0": 0.0015,
+      "schedule": "constant"
+    },
+    {
+      "T": 100,
+      "base_seed": 20260919,
+      "d": 5,
+      "p0": 0.0015,
+      "schedule": "sinusoid"
+    },
+    {
+      "T": 100,
+      "base_seed": 20260919,
+      "d": 5,
+      "p0": 0.0015,
+      "schedule": "step"
+    },
+    {
+      "T": 100,
+      "base_seed": 20260919,
+      "d": 5,
+      "p0": 0.0015,
+      "schedule": "burst"
+    },
+    {
+      "T": 100,
+      "base_seed": 20260919,
+      "d": 5,
+      "p0": 0.0015,
+      "schedule": "ou"
+    },
+    {
+      "T": 100,
+      "base_seed": 20260919,
+      "d": 5,
+      "p0": 0.003,
+      "schedule": "constant"
+    },
+    {
+      "T": 100,
+      "base_seed": 20260919,
+      "d": 5,
+      "p0": 0.003,
+      "schedule": "sinusoid"
+    },
+    {
+      "T": 100,
+      "base_seed": 20260919,
+      "d": 5,
+      "p0": 0.003,
+      "schedule": "step"
+    },
+    {
+      "T": 100,
+      "base_seed": 20260919,
+      "d": 5,
+      "p0": 0.003,
+      "schedule": "burst"
+    },
+    {
+      "T": 100,
+      "base_seed": 20260919,
+      "d": 5,
+      "p0": 0.003,
+      "schedule": "ou"
+    },
+    {
+      "T": 50,
+      "base_seed": 20260919,
+      "d": 7,
+      "p0": 0.0015,
+      "schedule": "constant"
+    },
+    {
+      "T": 50,
+      "base_seed": 20260919,
+      "d": 7,
+      "p0": 0.0015,
+      "schedule": "sinusoid"
+    },
+    {
+      "T": 50,
+      "base_seed": 20260919,
+      "d": 7,
+      "p0": 0.0015,
+      "schedule": "step"
+    },
+    {
+      "T": 50,
+      "base_seed": 20260919,
+      "d": 7,
+      "p0": 0.0015,
+      "schedule": "burst"
+    },
+    {
+      "T": 50,
+      "base_seed": 20260919,
+      "d": 7,
+      "p0": 0.0015,
+      "schedule": "ou"
+    },
+    {
+      "T": 50,
+      "base_seed": 20260919,
+      "d": 7,
+      "p0": 0.003,
+      "schedule": "constant"
+    },
+    {
+      "T": 50,
+      "base_seed": 20260919,
+      "d": 7,
+      "p0": 0.003,
+      "schedule": "sinusoid"
+    },
+    {
+      "T": 50,
+      "base_seed": 20260919,
+      "d": 7,
+      "p0": 0.003,
+      "schedule": "step"
+    },
+    {
+      "T": 50,
+      "base_seed": 20260919,
+      "d": 7,
+      "p0": 0.003,
+      "schedule": "burst"
+    },
+    {
+      "T": 50,
+      "base_seed": 20260919,
+      "d": 7,
+      "p0": 0.003,
+      "schedule": "ou"
+    }
+  ],
+  "versions": {
+    "numpy": "2.2.5",
+    "pandas": "3.0.1",
+    "platform": "Linux-6.11.0-29-generic-x86_64-with-glibc2.39",
+    "pymatching": "2.3.1",
+    "python": "3.12.9",
+    "scipy": "1.15.3",
+    "stim": "1.15.0",
+    "torch": "2.7.0+cu126",
+    "torch_geometric": "2.7.0"
+  }
+}

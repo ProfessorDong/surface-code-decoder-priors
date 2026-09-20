@@ -1,0 +1,43 @@
+# Deny by default: nothing is published unless it is named below.
+/*
+
+!/.gitignore
+!/LICENSE
+!/README.md
+
+# ---- code -------------------------------------------------------------
+!/simulation/
+/simulation/*
+!/simulation/__init__.py
+!/simulation/prx/
+!/simulation/tests/
+/simulation/tests/*
+!/simulation/tests/__init__.py
+!/simulation/tests/test_prx_*.py
+
+# ---- results: tables, manifests and logs ------------------------------
+!/research/
+/research/*
+!/research/prx_quantum/
+/research/prx_quantum/*
+!/research/prx_quantum/results/
+!/research/prx_quantum/preregistration/
+/research/prx_quantum/preregistration/*
+!/research/prx_quantum/preregistration/kappa_tuning_protocol.md
+!/research/prx_quantum/preregistration/kappa_tuning_protocol.sha256
+
+# ---- never published --------------------------------------------------
+# per-shot error vectors (hundreds of MB): deposited separately
+**/errors/
+*.npz
+# manuscript sources, reference PDFs, hardware archives, model weights
+*.tex
+*.pdf
+**/__pycache__/
+*.pyc
+*.pids
+# ad hoc run queues: machine-specific paths and PIDs, superseded by the README
+/research/prx_quantum/results/*.sh
+/research/prx_quantum/results/*.disabled-selfmatch
+# run logs: contain absolute paths from the machine they ran on
+*.log

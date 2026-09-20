@@ -1,0 +1,7 @@
+sigma_h,distance,conditions,draws,censored,static_meets_target,recrossing,budget_median,budget_q25,budget_q75,budget_NT_median,estimator
+0.6,3,24,6,0,13,4,100.0,100.0,300.0,900.0,pooled_shrink
+0.6,5,24,6,0,11,1,300.0,300.0,1000.0,4500.0,pooled_shrink
+0.6,7,12,6,0,0,0,1000.0,1000.0,3000.0,7000.0,pooled_shrink
+1.0,3,24,6,0,9,1,300.0,100.0,1000.0,2700.0,pooled_shrink
+1.0,5,24,6,0,0,0,1000.0,1000.0,3000.0,15000.0,pooled_shrink
+1.0,7,12,6,0,0,0,3000.0,3000.0,10000.0,21000.0,pooled_shrink
