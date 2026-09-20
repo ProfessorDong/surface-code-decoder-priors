@@ -816,6 +816,39 @@ def check_kappa():
     if not ok: FAILURES.append("large-budget kappa comparison differs from text")
 
 
+def check_eb_shrinkage():
+    """App. D: the empirical-Bayes shrinkage strength, and why it is not used."""
+    print("\n[App D] empirical-Bayes shrinkage")
+    dev = RES / "kappa_dev" / "20260920T022238Z_d8a61a_dev"
+    c = pd.read_csv(dev / "kappa_eb_criterion.csv").set_index("arm")
+    check("EB criterion", 0.104, float(c.loc["pooled_eb_global", "criterion_mean_rel_excess"]), tol=0.001 / 0.104,
+          text=L(r"the criterion rises from $0.059$ to $0.104$"))
+    check("tuned criterion on the development set", 0.059, float(c.loc["kappa=20.0", "criterion_mean_rel_excess"]),
+          tol=0.001 / 0.059)
+    check("EB harm fraction", 57, 100 * float(c.loc["pooled_eb_global", "harm_frac_N<=1e3"]), tol=0.5 / 57, unit="%",
+          text=L(r"rises from $17\%$ to $57\%$"))
+    check("tuned harm fraction", 17, 100 * float(c.loc["kappa=20.0", "harm_frac_N<=1e3"]), tol=0.5 / 17, unit="%")
+    check("no-shrinkage harm fraction", 62, 100 * float(c.loc["kappa=0.0", "harm_frac_N<=1e3"]), tol=0.5 / 62,
+          unit="%", text=L(r"which gives $62\%$"))
+    k = pd.read_csv(dev / "kappa_eb_values.csv")
+    k = k[k.estimator == "pooled_eb_global"]
+    med = k[np.isfinite(k.kappa_hat)].groupby("n_cal").kappa_hat.median()
+    check("EB kappa, smallest budget", 0.46, float(med.min()), tol=0.05 / 0.46,
+          text=L(r"chooses $\kappa$ between $0.5$ and $1.4$ in median"))
+    check("EB kappa, largest budget", 1.38, float(med.max()), tol=0.05 / 1.38)
+    v = pd.read_csv(latest("eb_variance/*_check") / "rows.csv")
+    big = v[v.n_cal >= 1000]
+    ok = 2.0 <= big.var_ratio_median.min() and big.var_ratio_median.max() <= 5.0
+    print(f"  {'ok      ' if ok else 'MISMATCH'} measured/modelled variance at N >= 1e3 in [2, 5]: "
+          f"{big.var_ratio_median.min():.1f} to {big.var_ratio_median.max():.1f}")
+    if not ok: FAILURES.append("variance-ratio range differs from the text")
+    check("variance text", 0, 0, text=L(r"a factor of $2$ to $5$ more than that model"))
+    kv = v.kappa_oracle_variance.replace(np.inf, np.nan).dropna()
+    check("kappa with the measured variance", 2.0, float(kv.median()), tol=0.25 / 2.0,
+          text=L(r"only raises the chosen $\kappa$ to a median of $2$"))
+
+
+
 def check_willow_kappa():
     """Sec. V: post hoc hardware sensitivity with the tuned kappa."""
     print("\n[Sec V] hardware sensitivity, kappa = 20")
@@ -1230,6 +1263,7 @@ def check_tex():
         "ACES cost stated structurally": r"84d\^2 - 36d - 24",
         "Tiurev total-vs-Pauli distinction": r"\\emph\{total\} error rate",
         "Libra named for the reproduced value": r"Our fit of Libra",
+        "repository named in the availability statement": r"github\.com/ProfessorDong/surface-code-decoder-priors",
     }
     must_not_contain = {
         "retired 'untested default' for kappa": r"untested default",
@@ -1339,6 +1373,7 @@ def main():
     check_population_limit()
     check_dgr()
     check_kappa()
+    check_eb_shrinkage()
     check_willow_kappa()
     check_willow()
     check_factorial()
