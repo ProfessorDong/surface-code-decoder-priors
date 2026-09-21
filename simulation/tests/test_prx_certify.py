@@ -72,3 +72,57 @@ class TestBranchRules(unittest.TestCase):
         for r, res in out.items():
             self.assertLessEqual(res["LB"], res["UB"] + 1e-18, r)
             self.assertLessEqual(res["LB"], self.prob.r_phys, r)
+
+
+def _cuda_available():
+    try:
+        import torch
+        return torch.cuda.is_available()
+    except Exception:
+        return False
+
+
+@unittest.skipUnless(_cuda_available(), "no GPU")
+class TestGpuCertificate(unittest.TestCase):
+    """The GPU backend must reproduce the CPU bound, not merely approximate it."""
+
+    @classmethod
+    def setUpClass(cls):
+        from simulation.prx.theory.certify_gpu import GpuProblem
+        cls.gpu = GpuProblem(2, 0.002)
+
+    def test_matches_cpu_bit_for_bit(self):
+        from simulation.prx.theory.certify_gpu import check_against_cpu
+        r = check_against_cpu(2, 0.002, points=3)
+        self.assertEqual(r["max_weight_diff"], 0.0)          # the tables agree bit for bit
+        self.assertLess(r["max_risk_diff"], 1e-12 * r["r_phys_cpu"])   # sums differ only in rounding
+        self.assertLess(r["max_lower_bound_diff"], 1e-12 * r["r_phys_cpu"])
+        self.assertAlmostEqual(r["r_phys_cpu"], r["r_phys_gpu"], places=15)
+
+    def test_driver_bound_is_sound(self):
+        """The certified lower bound cannot exceed the risk at any point of the box."""
+        from simulation.prx.theory.certify_gpu import certify_gpu
+        res = certify_gpu(self.gpu, 0.3, 2.0, 1e-6, 400, dive=4, log=lambda *a, **k: None)
+        self.assertLessEqual(res["LB"], res["UB"])
+        rng = np.random.default_rng(5)
+        for _ in range(12):
+            u = rng.uniform(np.log(0.3), np.log(2.0), 4)
+            self.assertLessEqual(res["LB"], self.gpu.risk_upper(u) + 1e-18)
+
+    def test_checkpoint_resumes(self):
+        """A resumed search continues from the state it saved and keeps its bound."""
+        import tempfile
+        from pathlib import Path
+        from simulation.prx.theory.certify_gpu import certify_gpu
+        with tempfile.TemporaryDirectory() as d:
+            ck = Path(d) / "state.npz"
+            first = certify_gpu(self.gpu, 0.3, 2.0, 1e-6, 200, dive=4, log=lambda *a, **k: None,
+                                checkpoint=ck, checkpoint_every=50)
+            self.assertTrue(ck.exists())
+            z = np.load(ck, allow_pickle=True)
+            state = {k: z[k] for k in z.files}
+            second = certify_gpu(self.gpu, 0.3, 2.0, 1e-6, 400, dive=4, log=lambda *a, **k: None,
+                                 checkpoint=ck, checkpoint_every=50, state=state)
+            self.assertGreater(second["boxes"], first["boxes"])
+            self.assertGreaterEqual(second["LB"], first["LB"] - 1e-18)   # the bound only improves
+            self.assertLessEqual(second["LB"], second["UB"])
