@@ -201,7 +201,7 @@ def certify_parallel(prob: Problem, T: int, p: float, lo: float, hi: float, rel_
     if r < best_ub:
         best_ub, best_u = r, c
     target = rel_gap * prob.r_phys
-    heap, counter, n_eval, pruned_min, last = [(lb, 0, a0, b0)], 1, 1, np.inf, 0
+    heap, counter, n_eval, pruned_min, last = [(lb, 0, a0, b0)], 1, 1, np.inf, time.time()
     with mp.get_context("forkserver").Pool(workers, initializer=_init, initargs=(T, p, 3)) as pool:
         while heap and heap[0][0] < best_ub - target and n_eval < max_boxes:
             parents = []
@@ -221,9 +221,9 @@ def certify_parallel(prob: Problem, T: int, p: float, lo: float, hi: float, rel_
                     heapq.heappush(heap, (clb, counter, ca, cb))
                 else:
                     pruned_min = min(pruned_min, clb)
-            # boxes kept earlier may now be prunable against the improved upper bound
-            if n_eval - last >= 20000:
-                last = n_eval
+            # progress on wall-clock, so short runs report too
+            if time.time() - last >= 300:
+                last = time.time()
                 log(f"    boxes {n_eval}, open {len(heap)}, LB {heap[0][0] if heap else best_ub:.8e}, "
                     f"UB {best_ub:.8e}, gap {(best_ub - (heap[0][0] if heap else best_ub)) / prob.r_phys:.2e}, "
                     f"{time.time() - t0:.0f}s")

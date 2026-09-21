@@ -876,7 +876,7 @@ def check_willow_kappa():
 def check_certificate():
     """Sec III / App B: branch-and-bound certificate over the per-class family at T = 2."""
     print("\n[Sec III / App B] certified bound, T = 2")
-    c = pd.read_csv(RES / "theory" / "certified_class_family_T2.csv").set_index("p").sort_index()
+    c = pd.read_csv(RES / "theory" / "certified_class_family_T2_wspan.csv").set_index("p").sort_index()
     e = pd.read_csv(RES / "theory" / "exact_candidates_untruncated.csv")
     e = e[e["T"] == 2]
     best = e.groupby("p").gain.max()
@@ -890,16 +890,16 @@ def check_certificate():
     ok = bool((c.LB <= c.UB).all() and (c.UB <= c.R_phys * (1 - best.reindex(c.index).values) + 1e-15).all())
     print(f"  {'ok      ' if ok else 'MISMATCH'} LB <= UB <= best searched risk")
     if not ok: FAILURES.append("certificate ordering LB <= UB <= search fails")
-    ceil_ = {0.0005: 4.12, 0.001: 3.81, 0.002: 3.37, 0.004: 2.65, 0.008: 1.79}
+    ceil_ = {0.0005: 3.72, 0.001: 3.48, 0.002: 3.09, 0.004: 2.44, 0.008: 1.73}
     for pp, v in ceil_.items():
         check(f"certified ceiling p={pp}", v, 100 * float(1 - c.LB[pp] / c.R_phys[pp]), tol=0.005 / v, unit="%")
-    check("ceiling text (App B)", 0, 0, text=L(r"the certified ceilings on the gain are $4.12\%$, $3.81\%$, $3.37\%$, $2.65\%$ and $1.79\%$"))
-    check("ceiling text (Sec III)", 0, 0, text=L(r"by more than $4.1\%$, $3.8\%$, $3.4\%$, $2.6\%$ and $1.8\%$ at the five error rates"))
-    check("ceiling range text", 0, 0, text=L(r"$1.8\%$ to $4.1\%$"))
+    check("ceiling text (App B)", 0, 0, text=L(r"the certified ceilings on the gain are $3.72\%$, $3.48\%$, $3.09\%$, $2.44\%$ and $1.73\%$"))
+    check("ceiling text (Sec III)", 0, 0, text=L(r"by more than $3.7\%$, $3.5\%$, $3.1\%$, $2.4\%$ and $1.7\%$ at the five error rates"))
+    check("ceiling range text", 0, 0, text=L(r"$1.7\%$ to $3.7\%$"))
     share = 100 * (c.R_phys - c.LB) / (c.R_phys - rml.reindex(c.index).values)
-    check("share of ML gap, low", 29, float(share.min()), tol=0.5 / 29, unit="%",
-          text=L(r"recover at most $29\%$ to $45\%$ of the gap"))
-    check("share of ML gap, high", 45, float(share.max()), tol=0.5 / 45, unit="%")
+    check("share of ML gap, low", 27, float(share.min()), tol=0.5 / 27, unit="%",
+          text=L(r"recover at most $27\%$ to $44\%$ of the gap"))
+    check("share of ML gap, high", 44, float(share.max()), tol=0.5 / 44, unit="%")
     imp = 100 * float((1 - c.UB / c.R_phys - best.reindex(c.index).values).max())
     check("certificate improvement over search", 0.014, imp, tol=0.0005 / 0.014, unit=" pts",
           text=L(r"by at most $0.014$ percentage points"))
