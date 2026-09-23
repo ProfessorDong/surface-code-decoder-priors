@@ -915,6 +915,38 @@ def check_certificate():
           text=L(r"this rule certifies a ceiling of $7.2\%$ against $8.5\%$ for midpoint splitting"))
     check("branching: midpoint rule", 8.5, float(b.loc["longest", "ceiling_%"]), tol=0.05 / 8.5, unit="%")
 
+    # three rounds, on the GPU
+    t3 = pd.read_csv(RES / "theory" / "certified_class_family_T3_gpu.csv").set_index("p").sort_index()
+    e3 = pd.read_csv(RES / "theory" / "exact_candidates_untruncated.csv")
+    e3 = e3[e3["T"] == 3]
+    r3 = e3.groupby("p").R_phys.first()
+    ok = bool(all(np.isclose(t3.R_phys[p], r3[p], rtol=0, atol=1e-15) for p in r3.index))
+    print(f"  {'ok      ' if ok else 'MISMATCH'} T=3 physical risk matches the exact table at every searched rate")
+    if not ok: FAILURES.append("T=3 certificate does not reproduce the exact physical risk")
+    ok = bool((t3.boxes >= 100000).all() and not t3.converged.any() and len(t3) == 5)
+    print(f"  {'ok      ' if ok else 'MISMATCH'} five T=3 runs, 1e5 boxes each, none closed")
+    if not ok: FAILURES.append("T=3 certificate runs differ from the text")
+    ceil3 = {0.0005: 8.27, 0.001: 7.81, 0.002: 7.18, 0.004: 4.25, 0.008: 3.37}
+    for pp, v in ceil3.items():
+        check(f"T=3 ceiling p={pp}", v, 100 * float(1 - t3.LB[pp] / t3.R_phys[pp]), tol=0.005 / v, unit="%")
+    check("T=3 ceiling text (App B)", 0, 0,
+          text=L(r"are $8.27\%$, $7.81\%$, $7.18\%$ and $4.25\%$ at the four error rates of the search"))
+    check("T=3 ceiling text (Sec III)", 0, 0,
+          text=L(r"the ceilings are $8.3\%$, $7.8\%$, $7.2\%$ and $4.2\%$ over the searched family"))
+    check("T=3 ceiling text (abstract)", 0, 0, text=L(r"$4.2\%$ to $8.3\%$ at three"))
+    rml3 = e3.groupby("p").R_ml.first()
+    sh = 100 * (t3.R_phys - t3.LB) / (t3.R_phys - rml3.reindex(t3.index))
+    sh = sh.dropna()
+    check("T=3 share of ML gap, low", 37, float(sh.min()), tol=0.5 / 37, unit="%",
+          text=L(r"which is $37\%$ to $41\%$ of the"))
+    check("T=3 share of ML gap, high", 41, float(sh.max()), tol=0.5 / 41, unit="%")
+    best3 = e3.groupby("p").gain.max()
+    imp3 = 100 * float(((1 - t3.UB / t3.R_phys) - best3.reindex(t3.index)).max())
+    check("T=3 improvement over the search", 0.011, imp3, tol=0.0005 / 0.011, unit=" pts",
+          text=L(r"by at most $0.011$ percentage points"))
+    check("T=3 best at p=4e-3", 0.43, 100 * float(1 - t3.UB[0.004] / t3.R_phys[0.004]), tol=0.005 / 0.43,
+          unit="%", text=L(r"its own best prior there gains $0.43\%$"))
+
 
 def check_frontier():
     """Sec. IV replicated frontier (independent noise draws) and Table IV."""
