@@ -1,20 +1,29 @@
 import unittest
 
 import numpy as np
+from scipy.stats import beta
 
 from simulation.prx import stats as S
-from simulation.evaluation.metrics import clopper_pearson_ci
+
+
+def _reference_clopper_pearson(k, n, alpha=0.05):
+    """The interval from its definition: beta quantiles, independent of prx.stats."""
+    lo = 0.0 if k == 0 else beta.ppf(alpha / 2, k, n - k + 1)
+    hi = 1.0 if k == n else beta.ppf(1 - alpha / 2, k + 1, n - k)
+    return float(lo), float(hi)
 
 
 class StatsTests(unittest.TestCase):
-    def test_clopper_pearson_matches_legacy_and_edges(self):
-        for k, n in [(0, 100), (100, 100), (7, 250), (1, 5)]:
+    def test_clopper_pearson_matches_definition_and_edges(self):
+        for k, n in [(0, 100), (100, 100), (7, 250), (1, 5), (3, 6)]:
             lo, hi = S.clopper_pearson(k, n)
-            lo2, hi2 = clopper_pearson_ci(k, n)
+            lo2, hi2 = _reference_clopper_pearson(k, n)
             self.assertAlmostEqual(lo, lo2, places=12)
             self.assertAlmostEqual(hi, hi2, places=12)
         self.assertEqual(S.clopper_pearson(0, 10)[0], 0.0)
         self.assertEqual(S.clopper_pearson(10, 10)[1], 1.0)
+        # the endpoint the text quotes for zero successes out of six seeds
+        self.assertAlmostEqual(S.clopper_pearson(0, 6)[1], 0.4593, places=4)
 
     def test_mcnemar_symmetric_and_exact(self):
         self.assertEqual(S.exact_mcnemar(0, 0), 1.0)

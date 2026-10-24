@@ -847,7 +847,7 @@ def check_population_limit():
     check("limit median excess, least negative stratum", -1.2, float(med.max()), tol=0.05, unit="%",
           text=L(r"by $1.2\%$ to $2.0\%$ in median across strata"))
     check("limit significantly better", 79, float((z < -3).sum()), tol=0, text=L(r"errors in $79$ of the $120$ conditions"))
-    check("limit significantly worse", 0, float((z > 3).sum()), tol=0, text=L(r"and significantly worse in none"))
+    check("limit significantly worse", 0, float((z > 3).sum()), tol=0, text=L(r"and worse by that margin in none"))
     ok = bool((L_.k_pooled_limit == L_.k_pij_limit).all())
     print(f"  {'ok      ' if ok else 'MISMATCH'} pooled and raw limits identical")
     pc = pd.read_csv(d / "budget_per_condition.csv"); q = pc[(pc.estimator == "pooled_shrink") & (pc.n_cal == pc.n_cal.max())]
@@ -1217,7 +1217,7 @@ def check_population_target():
     if not ok: FAILURES.append("the printed population-target range is wrong")
     check("raw-formula scope", 0, 0, text=L(r"Both equations describe the raw formula"))
     check("no fallback in text", 0, 0,
-          text=L(r"no fallback fires and every target lies between $2.7\times10^{-4}$ and $0.17$"))
+          text=L(r"no fallback fires, and every target lies between $2.7\times10^{-4}$ and $0.17$"))
     check("identity attributed", 0, 0, text=L(r"Blume-Kohout and Young ask what the $p_{ij}$"))
     check("sign pattern attributed", 0, 0, text=L(r"p_{12} + p_{123} - 2p_{12}p_{123}$"))
     ok = bool((d.mech_touching_two_neighbours == 0).all())
@@ -1238,6 +1238,37 @@ def check_population_target():
           text=L(r"it on $15$ of $30$ bulk edges at two rounds and $30$ of $54$ at three"))
     check("boundary counts in text", 0, 0,
           text=L(r"all $16$ boundary edges at two rounds and all $24$ at"))
+
+
+# words that assert emphasis instead of reporting it; the number is the emphasis
+EMPHATIC = ("fundamentally", "essentially", "crucially", "notably", "remarkably",
+            "dramatically", "vastly", "profoundly", "obviously", "clearly", "very")
+BRITISH = (r"neighbour", r"labelled", r"modelling", r"colour", r"favour", r"\bgrey\b",
+           r"cancelling", r"behaviour", r"\bcentre\b", r"\banalys(e|ed|ing)\b",
+           r"\b\w*(optimis|normalis|characteris|summaris|minimis|maximis)(e|ed|ing|ation)\b",
+           r"\bwhilst\b", r"\bamongst\b", r"\btowards\b")
+
+
+def check_house_style():
+    """No em dashes, no emphasis words, American spellings."""
+    print("\n[style] em dashes, emphasis, American spellings")
+    for name in ("prior_value.tex", "cover_letter.tex"):
+        f = HERE / name
+        if not f.is_file():
+            print(f"  skipped  {name} is not distributed with this code")
+            continue
+        lines = f.read_text().splitlines()
+        body = [(i, ln) for i, ln in enumerate(lines, 1) if not ln.lstrip().startswith(r"\bibitem")]
+        for label, hits in (
+                ("em dash", [i for i, ln in body if "---" in ln or "\u2014" in ln]),
+                ("emphasis word", [i for i, ln in body
+                                   if _re.search(r"\b(%s)\b" % "|".join(EMPHATIC), ln, _re.I)]),
+                ("British spelling", [i for i, ln in body
+                                      if _re.search("|".join(BRITISH), ln, _re.I)])):
+            ok = not hits
+            print(f"  {'ok      ' if ok else 'MISMATCH'} {name}: no {label}"
+                  f"{'' if ok else ' (lines ' + ', '.join(map(str, hits[:8])) + ')'}")
+            if not ok: FAILURES.append(f"{name} has a {label} on lines {hits[:8]}")
 
 
 def check_decomposition_census():
@@ -1862,6 +1893,7 @@ def main():
     check_tables_current()
     check_exact_theory()
     check_population_target()
+    check_house_style()
     check_decomposition_census()
     check_certificate()
     check_mechanism()
