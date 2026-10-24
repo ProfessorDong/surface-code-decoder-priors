@@ -310,16 +310,12 @@ def figure1(deep: Optional[Path], shallow: Optional[Path], out_dir: Path,
                markersize=3, label=f"$p$={p:g}")
         for p in sorted(markers)
     ]
-    shot_handles = [
-        Line2D([], [], color="0.35", marker="o", linestyle="none", markersize=3,
-               label="16M shots"),
-        Line2D([], [], color="0.35", marker="o", linestyle="none", markersize=3,
-               markerfacecolor="none", label="4M shots"),
-    ]
-    # one boxed legend, top right; in pgfplots (row-wise) the rows are classes,
-    # boundary with the two shot counts, and the three noise strengths
-    axb.legend(handles=class_handles[:3] + class_handles[3:] + shot_handles + p_handles,
-               loc="upper right", ncol=3, frameon=True, handletextpad=0.3,
+    # One boxed legend, top right, in two rows: the four class colours, then the
+    # three error rates as marker shapes. The fill convention (filled = 16M
+    # shots, open = 4M) is stated in the caption and deliberately kept out of
+    # the legend: a circle row for it is indistinguishable from p=0.0015.
+    axb.legend(handles=class_handles + p_handles,
+               loc="upper right", ncol=4, frameon=True, handletextpad=0.3,
                columnspacing=0.8)
     panel_label(axb, "b")
 
@@ -381,6 +377,23 @@ def figure2(theory_dir: Path, out_dir: Path) -> Optional[str]:
     if cand is None:
         return None
     surf = cand.loc[cand.groupby(["T", "p"]).gain.idxmax()].sort_values(["T", "p"]).reset_index(drop=True)
+    # "Best found" means the same here as in Table II and the ceiling figure: the
+    # maximum over every per-class prior whose exact risk we have, which includes
+    # the branch-and-bound incumbent. It beats the coordinate scan at every rate,
+    # so the scan alone would understate the best prior known.
+    for T, cname in ((2, "certified_class_family_T2_wspan.csv"),
+                     (3, "certified_class_family_T3_gpu.csv")):
+        cf = read_csv(theory_dir / cname, cname)
+        if cf is None:
+            continue
+        cf = cf.set_index("p")
+        for i, r in surf.iterrows():
+            if int(r["T"]) != T or float(r.p) not in cf.index:
+                continue
+            g = max(float(r.gain), float(cf.gain_UB_certified[float(r.p)]))
+            surf.loc[i, "gain"] = g
+            surf.loc[i, "R_cand"] = (1.0 - g) * float(r.R_phys)
+            surf.loc[i, "recovered"] = g * float(r.R_phys) / (float(r.R_phys) - float(r.R_ml))
     reps = sorted((theory_dir / "rep_untruncated").glob("risk_surface_rep_d3_T*.csv"),
                   key=lambda f: int(re.search(r"_T(\d+)", f.name).group(1)))
 
