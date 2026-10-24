@@ -8,6 +8,7 @@ submission build:  python manuscript/verify_numbers.py
 
 from __future__ import annotations
 
+import json
 import glob
 import sys
 from pathlib import Path
@@ -17,6 +18,46 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 RES = ROOT / "research" / "prx_quantum" / "results"
+HERE = Path(__file__).resolve().parent
+FIGDATA_PRESENT = (HERE / "figdata").is_dir()
+CERT_FILES = {2: "certified_class_family_T2_wspan.csv", 3: "certified_class_family_T3_gpu.csv"}
+
+
+def canonical_best():
+    """Best per-class gain at each (T, p) over every candidate evaluated.
+
+    The coordinate scan and its robustness re-test live in exact_candidates_untruncated.csv;
+    the branch-and-bound incumbent is an exact risk at a point of the same family and beats
+    the scan at every error rate. Table II and the figures take the maximum, so the checks
+    must too.
+    """
+    d = pd.read_csv(RES / "theory" / "exact_candidates_untruncated.csv")
+    g = d.groupby(["T", "p"]).gain.max()
+    for T, fname in CERT_FILES.items():
+        c = pd.read_csv(RES / "theory" / fname).set_index("p")
+        for p in c.index:
+            g.loc[(T, p)] = max(float(g.get((T, p), -np.inf)), float(c.gain_UB_certified[p]))
+    return g.sort_index()
+
+
+def figdata(name):
+    """Plotted series, or None when the figure data is not distributed with the code."""
+    f = HERE / "figdata" / f"{name}.dat"
+    return pd.read_csv(f, sep=r"\s+") if f.exists() else None
+
+
+def cmp_series(name, rows, atol=5e-6):
+    """Compare one plotted series against values re-derived from the result tables."""
+    got = figdata(name)
+    if got is None:
+        print(f"  derived  {name}: {len(rows)} points rebuilt from the result tables "
+              f"(figure data not distributed with the code)")
+        return
+    ok = len(got) == len(rows) and bool(np.allclose(got.x, [r[0] for r in rows], rtol=1e-12))
+    ok &= bool(np.allclose(got.y, [r[1] for r in rows], atol=atol))
+    print(f"  {'ok      ' if ok else 'MISMATCH'} {name}.dat ({len(got)} points) reproduces "
+          f"from the result tables")
+    if not ok: FAILURES.append(f"{name}.dat does not reproduce")
 FAILURES: list[str] = []
 
 
@@ -83,7 +124,7 @@ def check_headlines():
         print("  skipped: the manuscript source is not distributed with this code")
         return
     for tex in (r"per-class priors found improve logical error rates by at most $0.5\%$ at two rounds and up to $2.7\%$ at three",
-                r"converge to that limit, $1\%$ to $2\%$ below the true-rate decoder",
+                r"correlation fit's limit beats the true-rate decoder by $1\%$ to $2\%$",
                 r"break-even budget of $10^2$ to $10^3$ shots",
                 r"reduces held-out logical error rates by $1.3\%$ to $2.2\%$",
                 r"by at most $1.1\%$, whereas changing the decoder raises it by $23\%$ to $33\%$",
@@ -94,7 +135,7 @@ def check_headlines():
     # the values behind them are checked in their own sections; here we assert consistency
     f = RES / "theory" / "exact_candidates_untruncated.csv"
     if f.exists():
-        d = pd.read_csv(f); best = d.groupby(["T", "p"]).gain.max()
+        best = canonical_best()
         ok = best.loc[2].max() <= 0.005 and 0.0265 <= best.loc[3].max() <= 0.0275
         print(f"  {'ok      ' if ok else 'MISMATCH'} abstract T=2 max {100*best.loc[2].max():.3f}%, T=3 max {100*best.loc[3].max():.3f}%")
         if not ok: FAILURES.append("abstract reweighting numbers disagree with Table I")
@@ -130,17 +171,21 @@ def check_exact_theory():
     d = pd.read_csv(f)
     if (d.mass_deficit.abs() > 1e-12).any():
         FAILURES.append("an untruncated model does not sum to one")
-    best = d.loc[d.groupby(["T", "p"]).gain.idxmax()].set_index(["T", "p"])
-    g = lambda T, p: 100 * float(best.loc[(T, p), "gain"])
-    check("T=2 gain range, low end", 0.03, g(2, 0.0005), tol=0.02, unit="%", text=L(r"it is $0.03\%$ to $0.48\%$"))
-    check("T=2 gain range, high end", 0.48, g(2, 0.008), tol=0.02, unit="%")
+    canon = canonical_best()
+    g = lambda T, p: 100 * float(canon.loc[(T, p)])
+    check("T=2 gain range, low end", 0.03, g(2, 0.0005), tol=0.02, unit="%", text=L(r"it is $0.03\%$ to $0.50\%$"))
+    check("T=2 gain range, high end", 0.50, g(2, 0.008), tol=0.02, unit="%")
     check("T=3 gain, top of range", 2.7, g(3, 0.0005), tol=0.02, unit="%", text=L(r"$2.5\%$--$2.7\%$ at the three lowest error rates"))
     check("T=3 gain, bottom of range", 2.5, g(3, 0.002), tol=0.02, unit="%")
     check("duration factor at p=5e-4", 90, g(3, 0.0005) / g(2, 0.0005), tol=0.01, text=L(r"a factor of $90$ at"))
     check("duration factor at p=2e-3", 14, g(3, 0.002) / g(2, 0.002), tol=0.04, text=L(r"falling to $14$ at"))
     t2 = [g(2, p) for p in (0.0005, 0.001, 0.002, 0.004, 0.008)]
-    check("T=2 span over the p sweep", 16, max(t2) / min(t2), tol=0.03, text=L(r"the factor of $16$ that sweeping"))
-    check("drop at p=4e-3, T=3", 0.42, g(3, 0.004), tol=0.01, unit="%", text=L(r"to $0.42\%$ at"))
+    check("T=2 span over the p sweep", 17, max(t2) / min(t2), tol=0.03, text=L(r"the factor of $17$ that sweeping"))
+    check("drop at p=4e-3, T=3", 0.43, g(3, 0.004), tol=0.02, unit="%", text=L(r"to $0.43\%$ at"))
+    check("T=3 gain at p=2e-3 in text", 2.52, g(3, 0.002), tol=0.01, unit="%",
+          text=L(r"it drops from $2.52\%$ at"))
+    check("incumbent at p=4e-3 in text", 0, 0,
+          text=L(r"the branch-and-bound incumbent reaches $0.43\%$"))
     scan = 100 * float(d[(d["T"] == 3) & (np.isclose(d.p, 0.004)) & (d.candidate == "scan optimum")].gain.iloc[0])
     check("original scan value at p=4e-3", 0.41, scan, tol=0.01, unit="%", text=L(r"against $0.41\%$ for the original"))
     rb = RES / "theory" / "optimum_robustness_d3_T3_p0.004.csv"
@@ -209,15 +254,72 @@ def check_reweight_mechanism():
     ok = err < 1e-12
     print(f"  {'ok      ' if ok else 'MISMATCH'} attribution sums to the gain (max error {err:.1e})")
     if not ok: FAILURES.append("risk attribution does not sum to the gain")
+    # the attributed prior must BE the prior Table II displays, not an earlier candidate
+    best = canonical_best()
+    bad = [(int(r["T"]), float(r.p)) for _, r in d.iterrows()
+           if abs(float(r.gain_best) - float(best.loc[(int(r["T"]), float(r.p))])) > 1e-9]
+    ok = not bad and "candidate" in d.columns and bool(d.candidate.notna().all())
+    print(f"  {'ok      ' if ok else 'MISMATCH'} every attributed prior is the candidate Table II reports "
+          f"({d.candidate.value_counts().to_dict() if 'candidate' in d.columns else 'no candidate column'})")
+    if not ok: FAILURES.append(f"attribution uses a different candidate from Table II at {bad}")
+    check("attribution provenance", 0, 0,
+          text=L(r"computed for the same priors"))
+    check("attribution residual", 0, 0, text=L(r"sum to the tabulated risk reduction to $4\times10^{-15}$"))
     sh = 100 * d.gain_toward / d.gain_best
     s3 = sh[(d["T"] == 3) & (d.p < 0.003)]; s34 = float(sh[(d["T"] == 3) & np.isclose(d.p, 0.004)].iloc[0]); s2 = sh[d["T"] == 2]
-    check("share toward, T=3 p<=2e-3, min", 97.7, float(s3.min()), tol=0.05 / 97.7, unit="%")
-    check("share toward, T=3 p<=2e-3, max", 99.9, float(s3.max()), tol=0.05 / 99.9, unit="%",
-          text=L(r"account for $97.7\%$ to $99.9\%$ of the gain at three rounds"))
-    check("share toward, T=3 p=4e-3", 83, s34, tol=0.5 / 83, unit="%", text=L(r"for $83\%$ at $p = 4\times10^{-3}$"))
-    check("share toward, T=2 min", 75, float(s2.min()), tol=0.5 / 75, unit="%")
-    check("share toward, T=2 max", 99.7, float(s2.max()), tol=0.05 / 99.7, unit="%",
-          text=L(r"and for $75\%$ to $99.7\%$ at two rounds"))
+    ok = round(float(s3.min()), 1) == 97.5 and round(float(s3.max()), 1) == 99.9
+    print(f"  {'ok      ' if ok else 'MISMATCH'} share toward at T=3, p<=2e-3 prints as 97.5% to 99.9%: "
+          f"{float(s3.min()):.2f} to {float(s3.max()):.2f}")
+    if not ok: FAILURES.append("the T=3 toward-share range printed in the text is wrong")
+    check("share toward text T=3", 0, 0,
+          text=L(r"account for $97.5\%$ to $99.9\%$ of the gain at three rounds"))
+    ok = 82.0 <= s34 < 83.0
+    print(f"  {'ok      ' if ok else 'MISMATCH'} share toward at T=3, p=4e-3 rounds down to 82%: {s34:.2f}")
+    if not ok: FAILURES.append("the T=3 p=4e-3 toward share is not 82%")
+    check("share toward text T=3 high rate", 0, 0, text=L(r"for $82\%$ at $p = 4\times10^{-3}$"))
+    ok = float(s2.min()) >= 71.0 and float(s2.max()) <= 97.0
+    print(f"  {'ok      ' if ok else 'MISMATCH'} share toward at T=2 within [71, 97]%: "
+          f"{float(s2.min()):.2f} to {float(s2.max()):.2f}")
+    if not ok: FAILURES.append("the T=2 toward-share range printed in the text is wrong")
+    check("share toward text T=2", 0, 0, text=L(r"$71\%$ to $97\%$ at two rounds"))
+    check("intro attribution range", 0, 0, text=L(r"that $71\%$ to $99.9\%$ of each"))
+    # the same attribution applied to the correlation fit's population limit
+    if "gain_limit" in d.columns:
+        lim = pd.read_csv(RES / "theory" / "moment_limit_exact.csv").set_index(["T", "p"])
+        diffs = [abs(float(r.gain_limit) - float(lim.gain_limit[(int(r["T"]), float(r.p))]))
+                 for _, r in d.iterrows() if (int(r["T"]), float(r.p)) in lim.index]
+        err = float(np.nanmax(diffs)) if diffs else np.inf
+        ok = bool(d.gain_limit.notna().all()) and np.isfinite(err) and err < 1e-12
+        print(f"  {'ok      ' if ok else 'MISMATCH'} the limit prior attributed is the one Table II reports "
+              f"(max gain difference {err:.1e})")
+        if not ok: FAILURES.append("the attributed population-limit prior differs from Table II's")
+        err = float((d.gain_limit_toward + d.gain_limit_away - d.gain_limit).abs().max())
+        ok = bool(d.gain_limit_toward.notna().all()) and err < 1e-12
+        print(f"  {'ok      ' if ok else 'MISMATCH'} limit attribution sums to its gain (max error {err:.1e})")
+        if not ok: FAILURES.append("the population-limit attribution does not sum to its gain")
+        ls = 100 * d.gain_limit_toward / d.gain_limit
+        l3 = ls[(d["T"] == 3) & (d.p < 0.003)]
+        ok = round(float(l3.min()), 1) == 97.2 and round(float(l3.max()), 1) == 97.6
+        print(f"  {'ok      ' if ok else 'MISMATCH'} limit toward-share at T=3, p<=2e-3 prints as 97.2% to "
+              f"97.6%: {float(l3.min()):.2f} to {float(l3.max()):.2f}")
+        if not ok: FAILURES.append("the T=3 limit toward-share range in the text is wrong")
+        lo = ls[(d["T"] == 2) & (d.p <= 0.001)].sort_index()
+        ok = round(float(lo.iloc[0])) == 19 and round(float(lo.iloc[1])) == 25
+        print(f"  {'ok      ' if ok else 'MISMATCH'} limit toward-share at T=2, two lowest rates is 19% and "
+              f"25%: {float(lo.iloc[0]):.2f}, {float(lo.iloc[1]):.2f}")
+        if not ok: FAILURES.append("the T=2 limit toward-shares in the text are wrong")
+        # the two priors differ on a small mass: the text quotes both ends
+        dm = d.dis_best_vs_limit
+        lo_m = float(dm[(d["T"] == 2) & np.isclose(d.p, 0.0005)].iloc[0])
+        hi_m = float(dm[(d["T"] == 3) & np.isclose(d.p, 0.008)].iloc[0])
+        ok = 5e-7 <= lo_m <= 5e-6 and 1e-3 <= hi_m <= 1e-2 and hi_m == dm.max()
+        print(f"  {'ok      ' if ok else 'MISMATCH'} searched and limit priors differ on {lo_m:.1e} to "
+              f"{hi_m:.1e} of the syndrome mass")
+        if not ok: FAILURES.append("the quoted disagreement mass between the two priors is wrong")
+        check("limit attribution text", 0, 0,
+              text=L(r"$19\%$ and $25\%$ toward, against $96.5\%$ and $71.4\%$ for the searched"))
+        check("limit attribution scope", 0, 0,
+              text=L(r"not a property every helpful prior shares"))
     neg_pts = d[d.rule_term < 0]
     ok = len(neg_pts) > 0 and bool((neg_pts.gain_toward > 0).all())
     print(f"  {'ok      ' if ok else 'MISMATCH'} moves toward help even where the rule term is negative ({len(neg_pts)} points)")
@@ -481,8 +583,13 @@ def check_fig1():
     print(f"  {'ok      ' if ok else 'MISMATCH'} Fig1 scaling down at d>=5: max |change| {down:.2f}% (caption < 1%)")
     if not ok: FAILURES.append("Fig1 scale-down change not below 1%")
     f4 = big[big.f == 4].pct
-    check("Fig1 f=4 min", 13, float(f4.min()), tol=0.5 / 13, unit="%")
-    check("Fig1 f=4 max", 19, float(f4.max()), tol=0.5 / 19, unit="%", text=L(r"$f = 4$ raises it by $13\%$ to $19\%$"))
+    lo4, hi4 = float(f4.min()), float(f4.max())
+    ok = 13.0 <= lo4 and hi4 <= 19.3
+    print(f"  {'ok      ' if ok else 'MISMATCH'} Fig1 f=4 range {lo4:.2f}% to {hi4:.2f}% "
+          f"inside the caption's 13.0% to 19.3% (rounded outward)")
+    if not ok: FAILURES.append("Fig1 f=4 range falls outside the interval the caption prints")
+    check("Fig1 f=4 interval in text", 0, 0,
+          text=L(r"raises it by $13.0\%$ to $19.3\%$"))
     d3 = small.pct.abs().max()
     ok = d3 < 2.0
     print(f"  {'ok      ' if ok else 'MISMATCH'} Fig1 d=3 max |change| {d3:.2f}% (caption below 2%)")
@@ -497,20 +604,44 @@ def check_fig1():
     check("Fig1 boundary below one at d>=5", 15, float(below[cs.distance >= 5].sum()), tol=0,
           text=L(r"including all $15$ at $d \ge 5$"))
     check("Fig1 boundary d>=5 count", 15, float((cs.distance >= 5).sum()), tol=0)
+    # The grid has no point at exactly one: its nearest is 0.9987, and the
+    # non-boundary classes never go past it. The caption says so rather than
+    # claiming they stay at or above one.
     lo = float(cs[[f"scale_{c}" for c in C[:3]]].min().min())
-    ok = lo >= 1 - 2e-3          # grid point 0.9987 is the grid's representation of 1
-    print(f"  {'ok      ' if ok else 'MISMATCH'} Fig1 other classes never below one: min {lo:.4f}")
-    if not ok: FAILURES.append("Fig1 non-boundary scale below one")
+    ok = 0.9987 <= lo < 1.0
+    print(f"  {'ok      ' if ok else 'MISMATCH'} Fig1 other classes bottom out at the grid "
+          f"point next to one: min {lo:.4f}")
+    if not ok: FAILURES.append("Fig1 non-boundary minimum is not the grid point next to one")
+    check("Fig1 non-boundary floor in text", 0, 0,
+          text=L(r"no other class goes below $0.9987$, the grid point adjacent to one"))
+    blo = float(cs.scale_boundary.min())
+    ok = 0.59 <= blo
+    print(f"  {'ok      ' if ok else 'MISMATCH'} Fig1 lowest boundary scale {blo:.3f} "
+          f"(caption: as low as 0.59)")
+    if not ok: FAILURES.append("Fig1 lowest boundary scale is below the value the caption prints")
+    check("Fig1 boundary floor in text", 0, 0, text=L(r"and fall as low as $0.59$"))
+    nfill = int((cs.distance >= 5).sum()); nopen = int((cs.distance == 3).sum())
+    ok = nfill == 15 and nopen == 5
+    print(f"  {'ok      ' if ok else 'MISMATCH'} Fig1 marker fill: {nfill} filled (16M shots), "
+          f"{nopen} open (4M shots)")
+    if not ok: FAILURES.append("Fig1 filled/open marker counts differ from the caption")
+    check("Fig1 fill convention in text", 0, 0,
+          text=L(r"filled markers are from the $1.6\times10^{7}$-shot sweep, open"))
     import json
     grids = {tuple(np.round(json.loads(x)["grid"], 4)) for x in cs.estimator_params_json}
     g = next(iter(grids))
     ok = len(grids) == 1 and len(g) == 9 and np.isclose(g[0], 0.35) and np.isclose(g[-1], 2.85)
     print(f"  {'ok      ' if ok else 'MISMATCH'} Fig1 search grid: {len(g)} points in [{g[0]}, {g[-1]}]")
     if not ok: FAILURES.append("Fig1 search grid differs from caption")
+    ratios = np.diff(np.log(np.asarray(g, dtype=float)))
+    ok = bool(np.allclose(ratios, ratios[0], rtol=1e-3))   # g is rounded to 4 decimals
+    print(f"  {'ok      ' if ok else 'MISMATCH'} Fig1 grid is geometric, not linear")
+    if not ok: FAILURES.append("Fig1 grid is not geometric, but the caption says it is")
+    check("Fig1 geometric grid in text", 0, 0, text=L(r"a nine-point geometric grid in"))
     seeds_differ = all(json.loads(r.estimator_params_json)["seed_search"] != r.seed_test for _, r in cs.iterrows())
     print(f"  {'ok      ' if seeds_differ else 'MISMATCH'} Fig1 search shots separate from test shots")
     if not seeds_differ: FAILURES.append("Fig1 search seed equals test seed")
-    check("Fig1 grid text", 0, 0, text=L(r"nine-point grid in $[0.35, 2.85]$"))
+    check("Fig1 grid text", 0, 0, text=L(r"nine-point geometric grid in $[0.35, 2.85]$"))
 
 
 def check_fig2():
@@ -523,7 +654,25 @@ def check_fig2():
     print(f"  {'ok      ' if ok else 'MISMATCH'} surface points untruncated: {len(best)} points, "
           f"max |mass deficit| {best.mass_deficit.abs().max():.1e}")
     if not ok: FAILURES.append("Fig2 surface points not untruncated")
-    shares = list(100 * best.recovered)
+    # Table II, this figure and the ceiling figure must all quote the same
+    # "best found": the scan, its re-test, and the branch-and-bound incumbent.
+    canon = canonical_best()
+    shares, plotted = [], {2: ("p0_s2", "p0_s3", "p1_s1"), 3: ("p0_s4", "p0_s5", "p1_s2")}
+    for T, (sbest, sml, sshare) in plotted.items():
+        g = c[c["T"] == T]
+        rml, rph = g.groupby("p").R_ml.first(), g.groupby("p").R_phys.first()
+        rates = sorted(g.p.unique())
+        gains = {p: float(canon.loc[(T, p)]) for p in rates}
+        shares += [100 * gains[p] * rph[p] / (rph[p] - rml[p]) for p in rates]
+        cmp_series(f"fig2_exact_theory_{sbest}", [(p, 100 * (1 - gains[p])) for p in rates])
+        cmp_series(f"fig2_exact_theory_{sml}", [(p, 100 * rml[p] / rph[p]) for p in rates])
+        cmp_series(f"fig2_exact_theory_{sshare}",
+                   [(p, 100 * gains[p] * rph[p] / (rph[p] - rml[p])) for p in rates])
+        scan_only = g.groupby("p").gain.max()
+        beats = all(gains[p] >= float(scan_only[p]) - 1e-15 for p in rates)
+        print(f"  {'ok      ' if beats else 'MISMATCH'} T={T} plotted best is at least the "
+              f"coordinate scan at every rate")
+        if not beats: FAILURES.append(f"Fig2 T={T} plots less than the scan found")
     reps = sorted((th / "rep_untruncated").glob("risk_surface_rep_d3_T*.csv"))
     ok = len(reps) == 3
     for f in reps:
@@ -535,6 +684,55 @@ def check_fig2():
     if not ok: FAILURES.append("Fig2 repetition curves missing or truncated")
     check("Fig2 largest share of the gap recovered", 19, max(shares), tol=0.5 / 19, unit="%",
           text=L(r"It never exceeds $19\%$"))
+
+
+def check_fig_ceiling():
+    """Fig. ceiling: every plotted point re-derived from the certificate and exact tables."""
+    print("\n[Fig ceiling] certified ceiling against best found and the ML gap")
+    th = RES / "theory"
+    exact = pd.read_csv(th / "exact_candidates_untruncated.csv")
+    files = {2: "certified_class_family_T2_wspan.csv", 3: "certified_class_family_T3_gpu.csv"}
+    nclosed = 0
+    for T, fname in files.items():
+        cert = pd.read_csv(th / fname).set_index("p").sort_index()
+        nclosed += int(cert.converged.sum())
+        ex = exact[exact["T"] == T]
+        scan, rml = ex.groupby("p").gain.max(), ex.groupby("p").R_ml.first()
+        best = {p: max(float(scan.get(p, -1.0)), float(cert.gain_UB_certified[p])) for p in cert.index}
+        ceiling = [(p, 100 * (1 - cert.LB[p] / cert.R_phys[p])) for p in cert.index]
+        bestrows = [(p, 100 * best[p]) for p in cert.index]
+        cmp_series(f"fig_ceiling_T{T}_ceiling", ceiling)
+        cmp_series(f"fig_ceiling_T{T}_best", bestrows)
+        cmp_series(f"fig_ceiling_T{T}_mlgap",
+                   [(p, 100 * (cert.R_phys[p] - rml[p]) / cert.R_phys[p])
+                    for p in cert.index if p in rml.index])
+        cmp_series(f"fig_ceiling_T{T}_band_hi", ceiling)
+        cmp_series(f"fig_ceiling_T{T}_band_lo", bestrows)
+    ok = nclosed == 0
+    print(f"  {'ok      ' if ok else 'MISMATCH'} none of the ten branch-and-bound runs closed")
+    if not ok: FAILURES.append("caption claims no run closed, but some did")
+    check("ceiling caption", 0, 0, text=L(r"branch-and-bound runs closed it"))
+    # the caption says the incumbent wins at every rate, and that T=3 at 8e-3
+    # lacks only the ML point
+    for T, fname in files.items():
+        cert = pd.read_csv(th / fname).set_index("p").sort_index()
+        ex = exact[exact["T"] == T]
+        scan = ex.groupby("p").gain.max()
+        wins = all(float(cert.gain_UB_certified[p]) >= float(scan.get(p, -1.0)) for p in cert.index)
+        print(f"  {'ok      ' if wins else 'MISMATCH'} T={T}: the branch-and-bound incumbent is "
+              f"at least the scan at every error rate")
+        if not wins: FAILURES.append(f"T={T}: the scan beats the incumbent somewhere")
+    c3 = pd.read_csv(th / files[3]).set_index("p").sort_index()
+    e3 = exact[exact["T"] == 3]
+    ok = (0.008 in c3.index and 0.008 not in set(e3.p)
+          and np.isfinite(float(c3.gain_UB_certified[0.008])))
+    print(f"  {'ok      ' if ok else 'MISMATCH'} T=3 at p=8e-3 has a ceiling and a best-found "
+          f"point but no exact ML risk")
+    if not ok: FAILURES.append("the T=3 p=8e-3 caption note does not match the tables")
+    check("ceiling T3 note", 0, 0,
+          text=L(r"maximum-likelihood risk was not computed at $p = 8\times10^{-3}$"))
+    check("ceiling best-found provenance", 0, 0,
+          text=L(r"the better of the coordinate scan and the"))
 
 
 def check_fig4():
@@ -569,7 +767,7 @@ def check_fig4():
     ok = u < 0.5
     print(f"  {'ok      ' if ok else 'MISMATCH'} Fig4 uniform search max |change| {u:.2f}% (caption within 0.5%)")
     if not ok: FAILURES.append("Fig4 uniform search exceeds 0.5%")
-    check("Fig4 uniform text", 0, 0, text=L(r"The uniform search stays within $0.5\%$ of the shipped prior"))
+    check("Fig4 uniform text", 0, 0, text=L(r"stays within $0.5\%$ of the shipped SI1000 prior, the zero line"))
     d7 = js.loc[7]
     check("Fig4 d=7 N=3000 conditional interval, low", -1.58, 100 * float(d7.ci_lo), tol=0.03, unit="%")
     check("Fig4 d=7 N=3000 conditional interval, high", -0.91, 100 * float(d7.ci_hi), tol=0.03, unit="%")
@@ -621,9 +819,13 @@ def check_fig6():
     rl_c = -rel(R, Cr, S, Cr)
     check("Fig6 RL under corr, min", 3.8, float(rl_c.min()), tol=0.05 / 3.8, unit="%")
     check("Fig6 RL under corr, max", 5.7, float(rl_c.max()), tol=0.05 / 5.7, unit="%",
-          text=L(r"keeps an advantage of $3.8\%$ to $5.7\%$, the fitted prior at most $1.4\%$"))
+          text=L(r"keeps an advantage of $3.8\%$ to $5.7\%$, the fitted prior at most $1.5\%$"))
     fit_c = -rel(P, Cr, S, Cr)
-    check("Fig6 fitted under corr, max", 1.4, float(fit_c.max()), tol=0.05 / 1.4, unit="%")
+    ok = float(fit_c.max()) <= 1.5          # "at most" is a bound, so round it upward
+    print(f"  {'ok      ' if ok else 'MISMATCH'} Fig6 fitted prior under correlated matching keeps "
+          f"at most {float(fit_c.max()):.3f}%, inside the printed 1.5%")
+    if not ok: FAILURES.append("the fitted prior's advantage exceeds the bound the caption prints")
+    check("Fig6 fitted bound text", 0, 0, text=L(r"the fitted prior at most $1.5\%$"))
     ok = bool((ci[ci.distance < 7].groups_resampled).all() and not (ci[ci.distance == 7].groups_resampled).any())
     print(f"  {'ok      ' if ok else 'MISMATCH'} Fig6 groups resampled at d=3,5 only")
     if not ok: FAILURES.append("Fig6 group resampling differs from caption")
@@ -809,7 +1011,25 @@ def check_kappa():
     for n, a5, a20 in ((100, 53, 28), (300, 35, 14)):
         check(f"harm N={n} kappa=5", a5, 100 * hb.harm_k5[n], tol=0.5 / a5, unit="%")
         check(f"harm N={n} kappa=20", a20, 100 * hb.harm_kt[n], tol=0.5 / a20, unit="%")
-    check("harm text", 0, 0, text=L(r"falls from $53\%$ to $28\%$ at $10^2$ shots and from $35\%$ to $14\%$ at $3\times10^2$"))
+    check("harm text", 0, 0, text=L(r"falls from $53\%$ to $28\%$ at $10^2$ shots and from $35\%$ to $14\%$ at"))
+    # the same comparison counted over individual fits rather than condition averages
+    for n, a5, a20 in ((100, 51, 34), (300, 33, 17)):
+        check(f"individual-fit harm N={n} kappa=5", a5, 100 * hb.harm_ind_k5[n], tol=0.5 / a5, unit="%")
+        check(f"individual-fit harm N={n} kappa=20", a20, 100 * hb.harm_ind_kt[n], tol=0.5 / a20, unit="%")
+    check("individual-fit harm text", 0, 0,
+          text=L(r"the fraction falls from $51\%$ to $34\%$ and from $33\%$ to $17\%$ at the same two budgets"))
+    check("number of fits", 600, float(hb.n_fits[100]), tol=0, text=L(r"over $600$ fits"))
+    # the claim is about the REDUCTION tuning buys: about a half on condition means,
+    # about a third on individual fits
+    red_cm = 1 - hb.harm_kt[100] / hb.harm_k5[100]
+    red_in = 1 - hb.harm_ind_kt[100] / hb.harm_ind_k5[100]
+    ok = 0.45 <= red_cm <= 0.55 and 0.28 <= red_in <= 0.40 and red_in < red_cm
+    print(f"  {'ok      ' if ok else 'MISMATCH'} tuning removes {100*red_cm:.0f}% of condition-mean harm "
+          f"and {100*red_in:.0f}% of individual-fit harm at N=100")
+    if not ok: FAILURES.append("the two harm reductions are no longer a half and a third")
+    check("harm reduction wording", 0, 0,
+          text=L(r"roughly halves the harm to a condition's average fit and removes about a third"))
+    check("two harm statistics distinguished", 0, 0, text=L(r"an average of draws is not a draw"))
     top = sorted([100 * hb.median_excess_k5[300000], 100 * hb.median_excess_kt[300000]])
     ok = -1.65 <= top[0] and top[1] <= -1.45
     print(f"  {'ok      ' if ok else 'MISMATCH'} median excess at 3e5 unchanged: {top}")
@@ -821,12 +1041,50 @@ def check_eb_shrinkage():
     print("\n[App D] empirical-Bayes shrinkage")
     dev = RES / "kappa_dev" / "20260920T022238Z_d8a61a_dev"
     c = pd.read_csv(dev / "kappa_eb_criterion.csv").set_index("arm")
-    check("EB criterion", 0.104, float(c.loc["pooled_eb_global", "criterion_mean_rel_excess"]), tol=0.001 / 0.104,
-          text=L(r"the criterion rises from $0.059$ to $0.104$"))
-    check("tuned criterion on the development set", 0.059, float(c.loc["kappa=20.0", "criterion_mean_rel_excess"]),
-          tol=0.001 / 0.059)
-    check("EB harm fraction", 57, 100 * float(c.loc["pooled_eb_global", "harm_frac_N<=1e3"]), tol=0.5 / 57, unit="%",
-          text=L(r"rises from $17\%$ to $57\%$"))
+    check("EB criterion", 0.105, float(c.loc["pooled_eb_global", "criterion_mean_rel_excess"]), tol=0.001 / 0.105,
+          text=L(r"the criterion rises from $0.060$ to $0.105$"))
+    check("tuned criterion on the development set", 0.060, float(c.loc["kappa=20.0", "criterion_mean_rel_excess"]),
+          tol=0.001 / 0.060)
+    check("EB harm fraction", 56, 100 * float(c.loc["pooled_eb_global", "harm_frac_N<=1e3"]), tol=0.5 / 56, unit="%",
+          text=L(r"rises from $17\%$ to $56\%$"))
+    check("EB method named correctly", 0, 0, text=L(r"by the moment rule"))
+    # the summaries must come from the complete run, not a partial one
+    man = json.loads((dev / "manifest.json").read_text())
+    # replicates are capped by the shot pool, so the expected cell count follows the manifest
+    want = len(man["conditions"]) * sum(min(man["cfg"]["replicates"], man["cfg"]["n_pool"] // n)
+                                        for n in man["n_grid"])
+    raw = pd.read_csv(dev / "rows.csv")
+    got = len(raw[raw.estimator == "pooled_eb_global"])
+    ok = raw.cond_id.nunique() == len(man["conditions"]) == 120 and got == want
+    print(f"  {'ok      ' if ok else 'MISMATCH'} raw run complete: {raw.cond_id.nunique()} conditions, "
+          f"{got} of {want} global EB fits")
+    if not ok: FAILURES.append("the EB development run is incomplete")
+    kv_all = pd.read_csv(dev / "kappa_eb_values.csv")
+    got_s = len(kv_all[kv_all.estimator == "pooled_eb_global"])
+    ok = got_s == want
+    print(f"  {'ok      ' if ok else 'MISMATCH'} EB summary covers every raw fit ({got_s} of {want})")
+    if not ok: FAILURES.append("kappa_eb_values.csv was built from a partial run")
+    # the quoted criteria must come out of the raw rows, not just agree with a derived file
+    # of the right shape; and each (condition, arm, budget) cell must be unique
+    orc = raw[raw.estimator == "oracle"].set_index("cond_id")
+    st = raw[raw.estimator == "static"].set_index("cond_id")
+    f_ = raw[raw.estimator.isin(["pooled_shrink"]) | raw.estimator.str.startswith("pooled_eb")].copy()
+    f_["arm"] = np.where(f_.estimator == "pooled_shrink", "kappa=" + f_.kappa.astype(str), f_.estimator)
+    g_ = f_.groupby(["cond_id", "arm", "n_cal"]).agg(k=("n_errors", "sum"), n=("n_test", "sum")).reset_index()
+    g_["ler"] = g_.k / g_.n
+    g_["excess"] = g_.ler / (orc.loc[g_.cond_id, "n_errors"].values / orc.loc[g_.cond_id, "n_test"].values) - 1
+    g_["harm"] = g_.ler > st.loc[g_.cond_id, "n_errors"].values / st.loc[g_.cond_id, "n_test"].values
+    ok = not g_.duplicated(["cond_id", "arm", "n_cal"]).any() and orc.index.is_unique and st.index.is_unique
+    print(f"  {'ok      ' if ok else 'MISMATCH'} one cell per (condition, arm, budget): {len(g_)} unique keys")
+    if not ok: FAILURES.append("the EB aggregation has duplicate condition-arm-budget keys")
+    recomputed = g_.groupby("arm").excess.mean()
+    harm_re = g_[g_.n_cal <= 1000].groupby("arm").harm.mean()
+    worst = max(float((recomputed - c.criterion_mean_rel_excess).abs().max()),
+                float((harm_re - c["harm_frac_N<=1e3"]).abs().max()))
+    ok = worst < 1e-12
+    print(f"  {'ok      ' if ok else 'MISMATCH'} every arm of the criterion summary reproduces from the "
+          f"raw rows (max difference {worst:.1e})")
+    if not ok: FAILURES.append("kappa_eb_criterion.csv does not reproduce from the raw rows")
     check("tuned harm fraction", 17, 100 * float(c.loc["kappa=20.0", "harm_frac_N<=1e3"]), tol=0.5 / 17, unit="%")
     check("no-shrinkage harm fraction", 62, 100 * float(c.loc["kappa=0.0", "harm_frac_N<=1e3"]), tol=0.5 / 62,
           unit="%", text=L(r"which gives $62\%$"))
@@ -843,9 +1101,26 @@ def check_eb_shrinkage():
           f"{big.var_ratio_median.min():.1f} to {big.var_ratio_median.max():.1f}")
     if not ok: FAILURES.append("variance-ratio range differs from the text")
     check("variance text", 0, 0, text=L(r"a factor of $2$ to $5$ more than that model"))
-    kv = v.kappa_oracle_variance.replace(np.inf, np.nan).dropna()
-    check("kappa with the measured variance", 2.0, float(kv.median()), tol=0.25 / 2.0,
-          text=L(r"only raises the chosen $\kappa$ to a median of $2$"))
+    kv = v.kappa_oracle_variance
+    nb = int((~np.isfinite(kv)).sum())
+    check("kappa with the measured variance", 2.0, float(kv.median()), tol=0.06 / 2.0,
+          text=L(r"median of $2.0$ over the twelve cases"))
+    ok = len(v) == 12 and nb == 0
+    print(f"  {'ok      ' if ok else 'MISMATCH'} {len(v)} variance-check cases, {nb} maximized at "
+          f"full shrinkage")
+    if not ok: FAILURES.append("a variance-check case no longer has an interior maximum")
+    # a signature whose replicate fits are bit-identical carries no variance information and
+    # must be excluded; admitting its ~1e-30 arithmetic residue is what used to force kappa = inf
+    ok = "n_constant" in v.columns and int(v.n_constant.sum()) == 1
+    print(f"  {'ok      ' if ok else 'MISMATCH'} exactly one exactly-constant signature across the twelve "
+          f"cases, excluded from the likelihood ({int(v.n_constant.sum()) if 'n_constant' in v.columns else 'not recorded'})")
+    if not ok: FAILURES.append("the constant-column exclusion is not recorded as the text describes")
+    check("constant column explained", 0, 0, text=L(r"bit-identical across all twenty calibration sets"))
+    check("constant column residue", 0, 0, text=L(r"returns $3\times10^{-30}$ for it rather"))
+    check("no tuned variance floor", 0, 0,
+          text=L(r"the smallest variance among the signatures that do vary is $0.12$"))
+    check("variance study scoped", 0, 0,
+          text=L(r"covers four development conditions at three budgets"))
 
 
 
@@ -873,6 +1148,157 @@ def check_willow_kappa():
     check("kappa20 RL text", 0, 0, text=L(r"trails the reinforcement-learned prior by $0.15\%$, $0.21\%$ and $0.08\%$"))
 
 
+def check_fig_shrinkage():
+    """Fig. shrinkage: every plotted point re-derived from the development run."""
+    print("\n[Fig shrinkage] empirical Bayes against the tuned strength")
+    dev = RES / "kappa_dev" / "20260920T022238Z_d8a61a_dev"
+
+    k = pd.read_csv(dev / "kappa_eb_values.csv")
+    k = k[k.estimator == "pooled_eb_global"]
+    med = k[np.isfinite(k.kappa_hat)].groupby("n_cal").kappa_hat.median()
+    cmp_series("fig_shrinkage_kappahat", list(med.items()))
+    cmp_series("fig_shrinkage_tuned_level",
+               [(float(med.index.min()), 20.0), (float(med.index.max()), 20.0)])
+
+    c = pd.read_csv(dev / "kappa_eb_criterion.csv").set_index("arm")
+    fixed = {float(a_.split("=")[1]): float(c.loc[a_, "criterion_mean_rel_excess"])
+             for a_ in c.index if a_.startswith("kappa=") and float(a_.split("=")[1]) > 0}
+    cmp_series("fig_shrinkage_criterion", sorted(fixed.items()))
+    best_k = min(fixed, key=fixed.get)
+    ok = best_k == 20.0
+    print(f"  {'ok      ' if ok else 'MISMATCH'} the criterion minimum over fixed arms is kappa = {best_k:g}")
+    if not ok: FAILURES.append("the starred minimum is not the tuned kappa")
+    cmp_series("fig_shrinkage_criterion_best", [(best_k, fixed[best_k])])
+    check("shrinkage caption", 0, 0, text=L(r"its minimum at $\kappa = 20$"))
+    check("shrinkage caption, tuned criterion", 0.059986,
+          float(c.loc["kappa=20.0", "criterion_mean_rel_excess"]), tol=1e-3,
+          text=L(r"against $0.060$ at the tuned strength and $0.128$ with no"))
+    check("shrinkage caption, EB criterion", 0.105227,
+          float(c.loc["pooled_eb_global", "criterion_mean_rel_excess"]), tol=1e-3,
+          text=L(r"criterion is $0.105$, against"))
+    check("shrinkage caption, no-shrinkage criterion", 0.128436,
+          float(c.loc["kappa=0.0", "criterion_mean_rel_excess"]), tol=1e-3)
+    for name, arm in (("eb_level", "pooled_eb_global"), ("none_level", "kappa=0.0")):
+        v = float(c.loc[arm, "criterion_mean_rel_excess"])
+        cmp_series(f"fig_shrinkage_{name}", [(0.35, v), (1400.0, v)])
+
+
+def check_population_target():
+    """App. D, Prop. 3: the identities for the pairwise estimator's population limit."""
+    print("\n[App D] population target of the pairwise fit")
+    f = RES / "theory" / "population_target_identity.csv"
+    if not f.exists():
+        print("  skipped  population_target_identity.csv absent; run "
+              "python -m simulation.prx.theory.population_target")
+        FAILURES.append("population_target_identity.csv is missing")
+        return
+    d = pd.read_csv(f)
+    ok = len(d) == 10 and set(d["T"]) == {2, 3}
+    print(f"  {'ok      ' if ok else 'MISMATCH'} ten models checked (two durations, five error rates)")
+    if not ok: FAILURES.append("population-target check does not cover the ten models")
+    worst = float(max(d.bulk_identity_max_err.max(), d.boundary_identity_max_err.max(),
+                      d.estimator_bulk_max_err.max(), d.estimator_boundary_max_err.max()))
+    ok = worst < 8e-16
+    print(f"  {'ok      ' if ok else 'MISMATCH'} the identities hold, against the mechanism products and "
+          f"against the estimator itself, to {worst:.1e}")
+    if not ok: FAILURES.append("the population-target identities do not hold numerically")
+    check("identity tolerance", 0, 0, text=L(r"to $8\times10^{-16}$"))
+    # the proposition describes the raw formula; the text's scope claim is that neither the
+    # fallback nor the clipping is active on these models, so there it IS the estimator's limit
+    ok = bool((d.n_fallback_bulk == 0).all() and (d.n_fallback_boundary == 0).all())
+    print(f"  {'ok      ' if ok else 'MISMATCH'} no fallback fires at the population moments")
+    if not ok: FAILURES.append("a fallback fires, so the identity is not the estimator's limit there")
+    ok = bool((d.target_min > d.clip_lo).all() and (d.target_max < d.clip_hi).all())
+    print(f"  {'ok      ' if ok else 'MISMATCH'} every target lies strictly inside the clipping range "
+          f"[{d.target_min.min():.2e}, {d.target_max.max():.3f}]")
+    if not ok: FAILURES.append("a population target is clipped, so the identity is not the limit there")
+    ok = d.target_min.min() >= 2.7e-4 - 5e-6 and d.target_max.max() <= 0.17
+    print(f"  {'ok      ' if ok else 'MISMATCH'} the printed target range contains the computed one")
+    if not ok: FAILURES.append("the printed population-target range is wrong")
+    check("raw-formula scope", 0, 0, text=L(r"Both equations describe the raw formula"))
+    check("no fallback in text", 0, 0,
+          text=L(r"no fallback fires and every target lies between $2.7\times10^{-4}$ and $0.17$"))
+    check("identity attributed", 0, 0, text=L(r"Blume-Kohout and Young ask what the $p_{ij}$"))
+    check("sign pattern attributed", 0, 0, text=L(r"p_{12} + p_{123} - 2p_{12}p_{123}$"))
+    ok = bool((d.mech_touching_two_neighbours == 0).all())
+    print(f"  {'ok      ' if ok else 'MISMATCH'} no mechanism meets two graph neighbours of one detector")
+    if not ok: FAILURES.append("the condition on the boundary identity fails in some model")
+    ok = bool((d.boundary_limit_below_graph == d.boundary_edges).all())
+    print(f"  {'ok      ' if ok else 'MISMATCH'} every boundary limit lies below the graph prior, "
+          f"in all {int(d.boundary_edges.sum())} cases")
+    if not ok: FAILURES.append("some boundary population limit is not below the graph prior")
+    for T, bulk_above, bulk_n, bdry_n in ((2, 15, 30, 16), (3, 30, 54, 24)):
+        s = d[d["T"] == T]
+        ok = bool((s.bulk_limit_above_graph == bulk_above).all() and (s.bulk_edges == bulk_n).all()
+                  and (s.boundary_edges == bdry_n).all())
+        print(f"  {'ok      ' if ok else 'MISMATCH'} T={T}: {bulk_above}/{bulk_n} bulk limits above "
+              f"the graph prior, {bdry_n} boundary edges")
+        if not ok: FAILURES.append(f"T={T} population-target counts differ from the text")
+    check("bulk counts in text", 0, 0,
+          text=L(r"it on $15$ of $30$ bulk edges at two rounds and $30$ of $54$ at three"))
+    check("boundary counts in text", 0, 0,
+          text=L(r"all $16$ boundary edges at two rounds and all $24$ at"))
+
+
+def check_decomposition_census():
+    """Sec. II / Fig. 1: the projection drops nothing; the loss is independence."""
+    print("\n[Sec II] what the graphlike projection discards")
+    f = RES / "theory" / "decomposition_census.csv"
+    if not f.exists():
+        print("  skipped  decomposition_census.csv absent; run "
+              "python -m simulation.prx.theory.decomposition_census")
+        FAILURES.append("decomposition_census.csv is missing")
+        return
+    d = pd.read_csv(f).drop_duplicates("model")
+    # coverage must be the inventory the text claims, not a sample: every condition in the
+    # manifests of the runs behind Secs. IV-V, plus the exact models and the Willow leaves
+    sim = int((d.group != "willow").sum()); wil = int((d.group == "willow").sum())
+    manifests = [RES / r / "manifest.json" for r in
+                 ("prior_sweep/20260917T142535Z_fbc712_gate0",
+                  "prior_sweep/20260917T175304Z_d2f74a_gate0_deep",
+                  "frontier/20260918T054857Z_6e4d15_device_like",
+                  "frontier/20260919T131450Z_4e7c86_draws_kappa20")]
+    want = set()
+    for m in manifests:
+        if m.exists():
+            want |= set(json.loads(m.read_text()).get("conditions", []))
+    got = {n.split(":", 1)[1] for n in d.model if ":" in n}
+    missing = want - got
+    ok = sim == 211 and wil == 164 and not missing
+    print(f"  {'ok      ' if ok else 'MISMATCH'} census covers {sim} simulated models and {wil} Willow "
+          f"circuits, including every condition of the archived manifests "
+          f"({len(missing)} missing)")
+    if not ok: FAILURES.append("the decomposition census does not cover the model inventory the text claims")
+    ok = bool((d.components_3det_or_more == 0).all() and (d.max_component_size <= 2).all())
+    print(f"  {'ok      ' if ok else 'MISMATCH'} no component carries more than two detectors, "
+          f"so nothing is discarded")
+    if not ok: FAILURES.append("some mechanism does not decompose completely; the text says all do")
+    ok = bool((d.components_0det_with_logical == 0).all())
+    print(f"  {'ok      ' if ok else 'MISMATCH'} no component carries a logical flip without a detector")
+    if not ok: FAILURES.append("a detectorless logical component exists; the text says none does")
+    ok = bool((d.parallel_groups_conflicting_logical == 0).all())
+    print(f"  {'ok      ' if ok else 'MISMATCH'} no two parallel components disagree on the logical flip, "
+          f"so the merge is exact")
+    if not ok: FAILURES.append("parallel components disagree on the logical flip; the merge is not exact")
+    ok = bool((d.mechanisms_split > 0).all() and (d.hyperedges > 0).all())
+    print(f"  {'ok      ' if ok else 'MISMATCH'} every model does contain hyperedges that are split")
+    if not ok: FAILURES.append("a model has no decomposed hyperedge, so the figure's premise fails")
+    tot_m, tot_h = int(d.mechanisms.sum()), int(d.hyperedges.sum())
+    ok = 3.75e6 <= tot_m <= 3.85e6 and 2.45e6 <= tot_h <= 2.55e6
+    print(f"  {'ok      ' if ok else 'MISMATCH'} {tot_m/1e6:.2f}e6 mechanisms, {tot_h/1e6:.2f}e6 of them "
+          f"flipping three or more detectors")
+    if not ok: FAILURES.append("the census totals quoted in Sec. II are wrong")
+    check("census coverage in text", 0, 0,
+          text=L(r"the $211$ simulated SI1000 models of the exact study"))
+    check("census willow coverage", 0, 0,
+          text=L(r"the $164$ Willow circuits the hardware protocol calibrates or tests on"))
+    check("nothing discarded in text", 0, 0,
+          text=L(r"no component carries more than two detectors, no component carries a logical flip "
+                 r"without a detector, and no two parallel components disagree"))
+    check("independence is the loss", 0, 0,
+          text=L(r"components of one mechanism reach the decoder as independent"))
+
+
 def check_certificate():
     """Sec III / App B: branch-and-bound certificate over the per-class family at T = 2."""
     print("\n[Sec III / App B] certified bound, T = 2")
@@ -890,23 +1316,46 @@ def check_certificate():
     ok = bool((c.LB <= c.UB).all() and (c.UB <= c.R_phys * (1 - best.reindex(c.index).values) + 1e-15).all())
     print(f"  {'ok      ' if ok else 'MISMATCH'} LB <= UB <= best searched risk")
     if not ok: FAILURES.append("certificate ordering LB <= UB <= search fails")
-    ceil_ = {0.0005: 3.72, 0.001: 3.48, 0.002: 3.09, 0.004: 2.44, 0.008: 1.73}
+    # the App B values are the computed ceilings rounded UP to two decimals
+    ceil_ = {0.0005: 3.73, 0.001: 3.48, 0.002: 3.09, 0.004: 2.45, 0.008: 1.73}
     for pp, v in ceil_.items():
-        check(f"certified ceiling p={pp}", v, 100 * float(1 - c.LB[pp] / c.R_phys[pp]), tol=0.005 / v, unit="%")
-    check("ceiling text (App B)", 0, 0, text=L(r"the certified ceilings on the gain are $3.72\%$, $3.48\%$, $3.09\%$, $2.44\%$ and $1.73\%$"))
-    check("ceiling text (Sec III)", 0, 0, text=L(r"by more than $3.7\%$, $3.5\%$, $3.1\%$, $2.4\%$ and $1.7\%$ at the five error rates"))
-    check("ceiling range text", 0, 0, text=L(r"$1.7\%$ to $3.7\%$"))
+        got = 100 * float(1 - c.LB[pp] / c.R_phys[pp])
+        ok = got <= v + 1e-12 and v - got < 0.01
+        print(f"  {'ok      ' if ok else 'MISMATCH'} certified ceiling p={pp}: computed {got:.4f}%, "
+              f"quoted {v}% (a valid bound, tight to 2 dp)")
+        if not ok: FAILURES.append(f"App B ceiling at p={pp} is not a tight outward rounding")
+    # an upper bound printed to fewer digits must be rounded OUTWARD, or it is not a bound
+    quoted2 = {0.0005: (3.8, 3.73), 0.001: (3.5, 3.48), 0.002: (3.1, 3.09),
+               0.004: (2.5, 2.45), 0.008: (1.8, 1.73)}
+    bad = [f"p={pp}: {100*float(1-c.LB[pp]/c.R_phys[pp]):.4f}% > quoted {min(q)}%"
+           for pp, q in quoted2.items() if 100 * float(1 - c.LB[pp] / c.R_phys[pp]) > min(q) + 1e-12]
+    print(f"  {'ok      ' if not bad else 'MISMATCH'} every quoted T=2 ceiling is rounded outward")
+    if bad: FAILURES.append("a quoted ceiling is below the computed bound: " + "; ".join(bad))
+    check("ceiling text (App B)", 0, 0, text=L(r"the certified ceilings on the gain are $3.73\%$, $3.48\%$, $3.09\%$, $2.45\%$ and $1.73\%$"))
+    check("ceiling text (Sec III)", 0, 0, text=L(r"by more than $3.8\%$, $3.5\%$, $3.1\%$, $2.5\%$ and $1.8\%$ at the five"))
+    check("ceiling range text", 0, 0, text=L(r"$1.8\%$ to $3.8\%$"))
+    check("ceiling domain stated", 0, 0, text=L(r"within the declared scale boxes"))
+    check("outward rounding stated", 0, 0, text=L(r"rounded upward at the stated precision"))
     share = 100 * (c.R_phys - c.LB) / (c.R_phys - rml.reindex(c.index).values)
-    check("share of ML gap, low", 27, float(share.min()), tol=0.5 / 27, unit="%",
-          text=L(r"recover at most $27\%$ to $44\%$ of the gap"))
-    check("share of ML gap, high", 44, float(share.max()), tol=0.5 / 44, unit="%")
+    ok = float(share.min()) <= 26.6 and float(share.max()) <= 43.6
+    print(f"  {'ok      ' if ok else 'MISMATCH'} share of the ML gap {float(share.min()):.2f}% to "
+          f"{float(share.max()):.2f}%, inside the printed 26.6% to 43.6% (rounded upward)")
+    if not ok: FAILURES.append("a T=2 share of the ML gap exceeds the value the paper prints")
+    check("share of ML gap text", 0, 0,
+          text=L(r"recover at most $26.6\%$ to $43.6\%$ of the gap"))
     imp = 100 * float((1 - c.UB / c.R_phys - best.reindex(c.index).values).max())
-    check("certificate improvement over search", 0.014, imp, tol=0.0005 / 0.014, unit=" pts",
-          text=L(r"by at most $0.014$ percentage points"))
-    ok = bool(np.isclose(c.hi[0.008], 2.8085, atol=1e-3)) and bool((c.hi.drop(0.008) == 5).all()) and bool((c.lo == 0.15).all())
-    print(f"  {'ok      ' if ok else 'MISMATCH'} boxes [0.15, 5], [0.15, 2.81] at p = 8e-3")
+    ok = imp <= 0.015
+    print(f"  {'ok      ' if ok else 'MISMATCH'} branch and bound beat the scan by {imp:.5f} points "
+          f"at most, inside the printed 0.015 (rounded upward)")
+    if not ok: FAILURES.append("the incumbent's margin over the scan exceeds the printed bound")
+    check("certificate improvement text", 0, 0, text=L(r"by at most $0.015$ percentage points"))
+    # the box the paper prints must lie inside the box actually certified
+    ok = (float(c.hi[0.008]) >= 2.80 and bool((c.hi.drop(0.008) >= 5).all())
+          and bool((c.lo <= 0.15).all()))
+    print(f"  {'ok      ' if ok else 'MISMATCH'} printed boxes [0.15, 5] and [0.15, 2.80] lie "
+          f"inside the certified [0.15, 5] and [0.15, {float(c.hi[0.008]):.4f}]")
     if not ok: FAILURES.append("certificate box differs from the text")
-    check("box text", 0, 0, text=L(r"in $[0.15, 2.81]$ at $p = 8\times10^{-3}$"))
+    check("box text", 0, 0, text=L(r"in $[0.15, 2.80]$ at $p = 8\times10^{-3}$"))
     b = pd.read_csv(RES / "theory" / "branch_rule_comparison.csv").set_index("rule")
     ok = bool((b.boxes.nunique() == 1) and np.isclose(b.p.iloc[0], 1e-3))
     print(f"  {'ok      ' if ok else 'MISMATCH'} branching rules compared at one budget and error rate")
@@ -926,24 +1375,39 @@ def check_certificate():
     ok = bool((t3.boxes >= 100000).all() and not t3.converged.any() and len(t3) == 5)
     print(f"  {'ok      ' if ok else 'MISMATCH'} five T=3 runs, 1e5 boxes each, none closed")
     if not ok: FAILURES.append("T=3 certificate runs differ from the text")
-    ceil3 = {0.0005: 8.27, 0.001: 7.81, 0.002: 7.18, 0.004: 4.25, 0.008: 3.37}
+    ceil3 = {0.0005: 8.28, 0.001: 7.81, 0.002: 7.18, 0.004: 4.25, 0.008: 3.38}
     for pp, v in ceil3.items():
-        check(f"T=3 ceiling p={pp}", v, 100 * float(1 - t3.LB[pp] / t3.R_phys[pp]), tol=0.005 / v, unit="%")
+        got = 100 * float(1 - t3.LB[pp] / t3.R_phys[pp])
+        ok = got <= v + 1e-12 and v - got < 0.01
+        print(f"  {'ok      ' if ok else 'MISMATCH'} T=3 ceiling p={pp}: computed {got:.4f}%, "
+              f"quoted {v}% (a valid bound, tight to 2 dp)")
+        if not ok: FAILURES.append(f"App B T=3 ceiling at p={pp} is not a tight outward rounding")
+    quoted3 = {0.0005: (8.3, 8.28), 0.001: (7.9, 7.81), 0.002: (7.2, 7.18),
+               0.004: (4.3, 4.25), 0.008: (3.4, 3.38)}
+    bad = [f"p={pp}: {100*float(1-t3.LB[pp]/t3.R_phys[pp]):.4f}% > quoted {min(q)}%"
+           for pp, q in quoted3.items() if 100 * float(1 - t3.LB[pp] / t3.R_phys[pp]) > min(q) + 1e-12]
+    print(f"  {'ok      ' if not bad else 'MISMATCH'} every quoted T=3 ceiling is rounded outward")
+    if bad: FAILURES.append("a quoted T=3 ceiling is below the computed bound: " + "; ".join(bad))
     check("T=3 ceiling text (App B)", 0, 0,
-          text=L(r"are $8.27\%$, $7.81\%$, $7.18\%$ and $4.25\%$ at the four error rates of the search"))
+          text=L(r"are $8.28\%$, $7.81\%$, $7.18\%$ and $4.25\%$ at the four error rates of the search"))
     check("T=3 ceiling text (Sec III)", 0, 0,
-          text=L(r"the ceilings are $8.3\%$, $7.8\%$, $7.2\%$ and $4.2\%$ over the searched family"))
-    check("T=3 ceiling text (abstract)", 0, 0, text=L(r"$4.2\%$ to $8.3\%$ at three"))
+          text=L(r"the ceilings are $8.3\%$, $7.9\%$, $7.2\%$ and $4.3\%$ over the box"))
+    check("T=3 ceiling text (abstract)", 0, 0, text=L(r"$4.3\%$ to $8.3\%$ at three"))
     rml3 = e3.groupby("p").R_ml.first()
     sh = 100 * (t3.R_phys - t3.LB) / (t3.R_phys - rml3.reindex(t3.index))
     sh = sh.dropna()
-    check("T=3 share of ML gap, low", 37, float(sh.min()), tol=0.5 / 37, unit="%",
-          text=L(r"which is $37\%$ to $41\%$ of the"))
-    check("T=3 share of ML gap, high", 41, float(sh.max()), tol=0.5 / 41, unit="%")
+    ok = float(sh.min()) <= 37.1 and float(sh.max()) <= 41.5
+    print(f"  {'ok      ' if ok else 'MISMATCH'} T=3 share of the ML gap {float(sh.min()):.2f}% to "
+          f"{float(sh.max()):.2f}%, inside the printed 37.1% to 41.5% (rounded upward)")
+    if not ok: FAILURES.append("a T=3 share of the ML gap exceeds the value the paper prints")
+    check("T=3 share of ML gap text", 0, 0, text=L(r"which is $37.1\%$ to $41.5\%$ of the"))
     best3 = e3.groupby("p").gain.max()
     imp3 = 100 * float(((1 - t3.UB / t3.R_phys) - best3.reindex(t3.index)).max())
-    check("T=3 improvement over the search", 0.011, imp3, tol=0.0005 / 0.011, unit=" pts",
-          text=L(r"by at most $0.011$ percentage points"))
+    ok = imp3 <= 0.012
+    print(f"  {'ok      ' if ok else 'MISMATCH'} T=3 branch and bound beat the search by {imp3:.5f} "
+          f"points at most, inside the printed 0.012 (rounded upward)")
+    if not ok: FAILURES.append("the T=3 incumbent's margin over the search exceeds the printed bound")
+    check("T=3 improvement text", 0, 0, text=L(r"by at most $0.012$ percentage points"))
     check("T=3 best at p=4e-3", 0.43, 100 * float(1 - t3.UB[0.004] / t3.R_phys[0.004]), tol=0.005 / 0.43,
           unit="%", text=L(r"its own best prior there gains $0.43\%$"))
 
@@ -1033,7 +1497,8 @@ def check_frontier():
     ok = len(strata) == 6 and bool((strata == 8).all())
     print(f"  {'ok      ' if ok else 'MISMATCH'} Fig3(d) harm curves: 6 strata x 8 budgets")
     if not ok: FAILURES.append("Fig3(d) harm-curve data incomplete")
-    check("Fig3(d) caption", 0, 0, text=L(r"decodes worse than the uncalibrated prior, against calibration shots"))
+    check("Fig3(d) caption", 0, 0,
+          text=L(r"Fraction of conditions whose calibration-averaged risk exceeds the uncalibrated"))
     fin = [final("pooled_shrink", sg, dd) for sg in (0.6, 1.0) for dd in (3, 5, 7)]
     ok = all(-2.05 <= v <= -0.95 for v in fin)
     print(f"  {'ok      ' if ok else 'MISMATCH'} pooled_shrink final excess: {', '.join(f'{v:.2f}' for v in fin)}% (text 1-2% below)")
@@ -1212,6 +1677,14 @@ def check_willow():
     resolved = int((sh.ratio_lo > 1).sum())
     print(f"  {'ok      ' if resolved == 4 else 'MISMATCH'} conditional Lambda shifts resolved for {resolved} of 5 draws")
     if resolved != 4: FAILURES.append("conditional Lambda claim (four of five) no longer holds")
+    # ratio is Lambda_shipped / Lambda_fit, so the fit lowers Lambda by 1 - 1/ratio
+    drop = 100 * (1 - 1 / sh.ratio)
+    ok = 0.26 <= float(drop.min()) and float(drop.max()) <= 1.09
+    print(f"  {'ok      ' if ok else 'MISMATCH'} fitted priors lower Lambda by {float(drop.min()):.3f}% "
+          f"to {float(drop.max()):.3f}%, inside the printed 0.26% to 1.09% (rounded outward)")
+    if not ok: FAILURES.append("the conditional Lambda drop falls outside the range the paper prints")
+    check("conditional Lambda drop text", 0, 0,
+          text=L(r"by $0.26\%$ to $1.09\%$, resolved for four of the five"))
 
 
 def check_factorial():
@@ -1388,6 +1861,8 @@ def main():
     check_headlines()
     check_tables_current()
     check_exact_theory()
+    check_population_target()
+    check_decomposition_census()
     check_certificate()
     check_mechanism()
     check_reweight_mechanism()
@@ -1397,6 +1872,7 @@ def main():
     check_gate0()
     check_fig1()
     check_fig2()
+    check_fig_ceiling()
     check_fig4()
     check_fig5()
     check_fig6()
@@ -1406,6 +1882,7 @@ def main():
     check_dgr()
     check_kappa()
     check_eb_shrinkage()
+    check_fig_shrinkage()
     check_willow_kappa()
     check_willow()
     check_factorial()
