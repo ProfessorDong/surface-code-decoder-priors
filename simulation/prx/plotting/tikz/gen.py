@@ -252,14 +252,16 @@ def emit(r,tag,single=False):
 
 byfig=OrderedDict()
 for r in cap: byfig.setdefault(r.get("figure","fig"),[]).append(r)
-GEOM={1:("0.68\\columnwidth","4.0cm",1), 2:("0.37\\textwidth","4.2cm",2),
-      3:("0.24\\textwidth","3.8cm",3),   4:("0.37\\textwidth","4.0cm",2)}
+# panels -> (axis width, axis height, columns, horizontal sep); two-column layouts
+# get a wider gutter so the right panel's y label clears the left panel's ticks
+GEOM={1:("0.68\\columnwidth","4.0cm",1,"1.35cm"), 2:("0.37\\textwidth","4.2cm",2,"1.70cm"),
+      3:("0.24\\textwidth","3.8cm",3,"1.35cm"),   4:("0.37\\textwidth","4.0cm",2,"1.70cm")}
 for fig,axes in byfig.items():
-    w,h,ncol=GEOM.get(len(axes),("0.40\\textwidth","4.0cm",2))
+    w,h,ncol,hsep=GEOM.get(len(axes),("0.40\\textwidth","4.0cm",2,"1.70cm"))
     nrow=max(1,(len(axes)+ncol-1)//ncol)
     vsep = "2.1cm" if (nrow > 1 and any(r["props"].get("title") for r in axes)) else "1.45cm"
     P=["\\begin{tikzpicture}",
-       "\\begin{groupplot}[group style={group size=%d by %d, horizontal sep=1.35cm, vertical sep=%s},prxaxis]"%(ncol,nrow,vsep)]
+       "\\begin{groupplot}[group style={group size=%d by %d, horizontal sep=%s, vertical sep=%s},prxaxis]"%(ncol,nrow,hsep,vsep)]
     plan_legends(fig, axes)
     for i,r in enumerate(axes):
         r["_panel"] = i
