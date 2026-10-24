@@ -28,7 +28,8 @@ from ..experiments.frontier import nominal_template
 from ..results_io import new_run_dir, write_manifest
 
 FIELDS = ["cond_id", "distance", "rounds", "p", "sigma_h", "het_seed", "n_cal", "n_signatures",
-          "var_ratio_median", "var_ratio_p90", "kappa_modelled", "kappa_oracle_variance"]
+          "n_constant", "var_ratio_median", "var_ratio_p90", "kappa_modelled",
+          "kappa_oracle_variance"]
 
 
 def _logit(p):
@@ -59,7 +60,15 @@ def task(t: Dict[str, Any]) -> Dict[str, Any]:
         ne[r] = np.array([max(v, 1e-9) for v in _n_eff(template, xi, xij, n)[idx]])
     measured = z.var(axis=0, ddof=1)
     modelled = 1.0 / ne.mean(axis=0)
-    ok = np.isfinite(measured) & np.isfinite(modelled) & (measured > 0)
+    # A signature whose R fits are bit-identical -- in practice one that falls back to the
+    # reference on every replicate -- carries no information about its sampling variance.
+    # Its sample variance is not exactly zero, because the two-pass arithmetic leaves a
+    # residue of order 1e-30, and admitting that residue would make the signature look like
+    # an arbitrarily precise observation and drive the likelihood to full shrinkage. Drop
+    # the column on the exact test rather than on a variance floor, which would need its own
+    # justification.
+    constant = np.ptp(z, axis=0) == 0
+    ok = np.isfinite(measured) & np.isfinite(modelled) & (measured > 0) & ~constant
     ratio = measured[ok] / modelled[ok]
     # kappa from a single replicate, with the modelled and with the measured variance
     delta = z[0] - _logit(np.clip(template.p[idx], 1e-12, 0.5 - 1e-12))
@@ -67,7 +76,8 @@ def task(t: Dict[str, Any]) -> Dict[str, Any]:
     k_oracle = eb_kappa_mle(delta[ok], 1.0 / measured[ok])
     return {"cond_id": cond.cond_id, "distance": cond.distance, "rounds": cond.rounds, "p": cond.p,
             "sigma_h": cond.extra["sigma_h"], "het_seed": cond.extra["het_seed"], "n_cal": n_cal,
-            "n_signatures": int(ok.sum()), "var_ratio_median": float(np.median(ratio)),
+            "n_signatures": int(ok.sum()), "n_constant": int(constant.sum()),
+            "var_ratio_median": float(np.median(ratio)),
             "var_ratio_p90": float(np.quantile(ratio, 0.9)), "kappa_modelled": float(k_model),
             "kappa_oracle_variance": float(k_oracle)}
 

@@ -1,0 +1,24 @@
+{
+  "base_seed": 20260920,
+  "code_hash": "700ece5c92470074aca8680d30ec7693d3fd99a114c578c04519fe9371fcd070",
+  "conditions": [
+    "si1000|d3|T3|Z|p0.0015|{\"het_seed\": 301, \"p_nominal\": 0.001, \"sigma_h\": 0.6, \"variant\": \"google2025\"}",
+    "si1000|d3|T3|Z|p0.0015|{\"het_seed\": 401, \"p_nominal\": 0.001, \"sigma_h\": 1.0, \"variant\": \"google2025\"}",
+    "si1000|d5|T5|Z|p0.0015|{\"het_seed\": 301, \"p_nominal\": 0.001, \"sigma_h\": 0.6, \"variant\": \"google2025\"}",
+    "si1000|d5|T5|Z|p0.0015|{\"het_seed\": 401, \"p_nominal\": 0.001, \"sigma_h\": 1.0, \"variant\": \"google2025\"}"
+  ],
+  "created_utc": "2026-10-24T02:18:39Z",
+  "experiment": "eb_variance",
+  "replicates": 20,
+  "versions": {
+    "numpy": "2.2.5",
+    "pandas": "3.0.1",
+    "platform": "Linux-6.11.0-29-generic-x86_64-with-glibc2.39",
+    "pymatching": "2.3.1",
+    "python": "3.12.9",
+    "scipy": "1.15.3",
+    "stim": "1.15.0",
+    "torch": "2.7.0+cu126",
+    "torch_geometric": "2.7.0"
+  }
+}
