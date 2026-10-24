@@ -60,28 +60,51 @@ def _expit(x):
     return 1.0 / (1.0 + np.exp(-x))
 
 
+def _eb_nll(A: float, d2: np.ndarray, D: np.ndarray) -> float:
+    """Negative log likelihood of X_g ~ N(0, A + D_g), up to a constant."""
+    v = A + D
+    return 0.5 * float(np.sum(np.log(v) + d2 / v))
+
+
 def eb_kappa_mle(delta: np.ndarray, n_eff: np.ndarray, iters: int = 200) -> float:
     """Efron-Morris maximum-likelihood shrinkage strength for unequal sampling variances.
 
     Their toxoplasmosis model is ours: X_g ~ N(theta_g, D_g) with D_g known and unequal
     (here D_g = 1/n_g, an estimate from n_g events), theta_g ~ N(0, A) about the reference.
-    A is the root of A = sum_g (X_g^2 - D_g) I_g(A) / sum_g I_g(A) with Fisher information
-    I_g(A) = 1/[2(A + D_g)^2], reached here by fixed-point iteration from the moment
-    estimate and truncated at zero. Returns kappa = 1/A, the weight in n/(n + kappa).
+    The stationary points of the likelihood solve A = sum_g (X_g^2 - D_g) I_g(A) / sum_g I_g(A)
+    with Fisher information I_g(A) = 1/[2(A + D_g)^2].
+
+    That equation can have an interior root that is *not* the maximum: with unequal D_g the
+    likelihood is sometimes maximized at the boundary A = 0, where the estimate shrinks all
+    the way to the reference. Iterating the fixed point alone then returns a finite kappa at
+    a point of lower likelihood -- on one condition of the variance check (d=3, sigma=1,
+    p=0.0015, N=100) by 20.76 in negative log likelihood. We therefore evaluate the
+    likelihood on a coarse log grid together with the boundary, refine the best grid point
+    by the same fixed point, and return the best of all candidates. Returns kappa = 1/A,
+    the weight in n/(n + kappa); kappa = inf means shrink fully to the reference.
     """
     ok = np.isfinite(delta) & np.isfinite(n_eff) & (n_eff > 0)
     if ok.sum() < 3:                      # A is not identified from one or two signatures
         return np.inf
     d2, D = delta[ok] ** 2, 1.0 / n_eff[ok]
-    A = max(float(np.mean(d2 - D)), 1e-12)
-    for _ in range(iters):
-        w = 1.0 / (A + D) ** 2
-        A_new = float(np.sum((d2 - D) * w) / np.sum(w))
-        A_new = max(A_new, 0.0)
-        if abs(A_new - A) <= 1e-12 * max(A, 1e-12):
+
+    def refine(A0: float) -> float:
+        A = max(A0, 0.0)
+        for _ in range(iters):
+            if A <= 0.0:
+                return 0.0
+            w = 1.0 / (A + D) ** 2
+            A_new = max(float(np.sum((d2 - D) * w) / np.sum(w)), 0.0)
+            if abs(A_new - A) <= 1e-12 * max(A, 1e-12):
+                return A_new
             A = A_new
-            break
-        A = A_new
+        return A
+
+    scale = max(float(np.mean(d2)), float(np.mean(D)), 1e-12)
+    grid = np.concatenate([[0.0], np.geomspace(1e-9 * scale, 1e4 * scale, 400)])
+    cands = [0.0, refine(max(float(np.mean(d2 - D)), 1e-12)),
+             refine(float(grid[int(np.argmin([_eb_nll(a, d2, D) for a in grid]))]))]
+    A = min(cands, key=lambda a: _eb_nll(a, d2, D))
     return 1.0 / A if A > 0 else np.inf
 
 
@@ -193,7 +216,7 @@ class PooledPijEstimator(Estimator):
             ne = np.array([float(np.mean(n_eff[ks])) for ks in reps])
             cl = np.array([int(template.cls[ks[0]]) for ks in reps])
             est = eb_kappa_mle if self.eb.endswith("mle") else eb_kappa
-            if self.eb == "per_class":
+            if self.eb.startswith("per_class"):
                 kap = {int(c): est(dz[cl == c], ne[cl == c]) for c in np.unique(cl)}
                 k_edge = np.array([kap.get(int(c), np.inf) for c in template.cls])
                 kappa_used = {int(c): float(v) for c, v in kap.items()}

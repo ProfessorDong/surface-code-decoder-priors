@@ -114,6 +114,38 @@ class TestEmpiricalBayesShrinkage(unittest.TestCase):
         from simulation.prx.estimators.pooled import eb_kappa_mle
         self.assertEqual(eb_kappa_mle(np.array([0.3, -0.2]), np.array([100.0, 100.0])), np.inf)
 
+    def test_mle_prefers_the_boundary_when_the_likelihood_does(self):
+        """The stationary point of the EB likelihood is not always its maximum.
+
+        With unequal sampling variances the fixed point of the Efron-Morris estimating
+        equation can land on an interior root of lower likelihood than A = 0. This case
+        is a compact stand-in for the one found on the variance check (d=3, sigma=1,
+        p=0.0015, N=100), where the plain fixed point returned kappa = 1.86 at a negative
+        log likelihood 20.76 above the boundary. The estimator must return the boundary,
+        kappa = inf, meaning shrink fully to the reference.
+        """
+        from simulation.prx.estimators.pooled import eb_kappa_mle, _eb_nll
+        delta = np.array([8.8084, 1.2530, -0.5168, -6.3398, 0.0109, 3.8922])
+        D = np.array([40.0, 40.0, 2.0, 40.0, 0.01, 2.0])
+        d2 = delta ** 2
+        interior = 1.679556                                  # what the bare fixed point returns
+        self.assertLess(_eb_nll(0.0, d2, D), _eb_nll(interior, d2, D) - 1.0)
+        self.assertEqual(eb_kappa_mle(delta, 1.0 / D), np.inf)
+
+    def test_mle_matches_a_dense_scalar_search(self):
+        """On random unequal-variance problems the returned A attains the grid optimum."""
+        from simulation.prx.estimators.pooled import eb_kappa_mle, _eb_nll
+        rng = np.random.default_rng(11)
+        for _ in range(25):
+            g = int(rng.integers(5, 40))
+            D = 1.0 / rng.integers(1, 500, size=g).astype(float)
+            delta = rng.standard_normal(g) * rng.choice([0.05, 1.0, 6.0], size=g)
+            kap = eb_kappa_mle(delta, 1.0 / D)
+            A = 0.0 if not np.isfinite(kap) else 1.0 / kap
+            grid = np.concatenate([[0.0], np.geomspace(1e-10, 1e5, 60000)])
+            best = min(_eb_nll(a, delta ** 2, D) for a in grid)
+            self.assertLessEqual(_eb_nll(A, delta ** 2, D), best + 1e-6)
+
     def test_eb_fit_returns_its_kappa(self):
         """A fit with eb= set records the strength it chose and shrinks toward the template."""
         import json
@@ -126,9 +158,21 @@ class TestEmpiricalBayesShrinkage(unittest.TestCase):
         bulk = np.flatnonzero(template.v >= 0)
         pairs = np.stack([template.u[bulk], template.v[bulk]], axis=1)
         xi, xij, n = pairwise_moments(dets, template.num_detectors, pairs)
+        classes = set(int(c) for c in template.cls)
         for variant in ("global", "per_class", "global_mle", "per_class_mle"):
             fit = PooledPijEstimator(eb=variant).fit_moments(template, xi, xij, n)
             k = json.loads(fit.params["kappa_eb_json"])
             self.assertTrue(k, variant)
             self.assertTrue(all(v > 0 for v in k.values()), (variant, k))
             self.assertTrue(np.all(fit.table.p > 0) and np.all(fit.table.p < 0.5), variant)
+            # a per-class variant must group: one kappa per class present, not one global fit
+            if variant.startswith("per_class"):
+                self.assertEqual(set(int(c) for c in k), classes, variant)
+            else:
+                self.assertEqual(list(k), ["global"], variant)
+        # the two per-class arms must dispatch to different estimators, as their names say
+        mom = json.loads(PooledPijEstimator(eb="per_class").fit_moments(
+            template, xi, xij, n).params["kappa_eb_json"])
+        mle = json.loads(PooledPijEstimator(eb="per_class_mle").fit_moments(
+            template, xi, xij, n).params["kappa_eb_json"])
+        self.assertNotEqual(mom, mle)
