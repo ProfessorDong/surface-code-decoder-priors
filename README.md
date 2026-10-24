@@ -7,7 +7,10 @@ cost. Three strands:
 1. **Exact theory.** The risk of matching under any prior is computed exactly, by XOR
    convolution over the detector error model, with no sampling. This gives the gain of
    the best per-class prior, the gap to maximum-likelihood decoding, and a
-   branch-and-bound *certificate* bounding what the whole per-class family can achieve.
+   branch-and-bound bound on what the whole per-class family can achieve. The bounding
+   argument is a proof in real arithmetic; the computation runs in float64 without a
+   propagated error enclosure, so the numbers it reports are numerically validated
+   upper bounds rather than interval-enclosed ones.
 2. **Simulation.** Circuit-level SI1000 noise with per-qubit heterogeneity, and the
    shot-budget frontier: how many calibration shots a syndrome-only fit needs before it
    helps rather than harms, with shrinkage toward the uncalibrated prior.
@@ -44,7 +47,7 @@ python -m unittest discover -s simulation/tests -t . -p 'test_prx_*.py'
 # exact risk of every candidate prior, two and three rounds
 python -m simulation.prx.theory.exact_candidates
 
-# certified bound over the continuous per-class family (two rounds)
+# numerical bound over the continuous per-class family (two rounds)
 python -m simulation.prx.theory.certify_class_family --rounds 2 --workers 16
 
 # shot-budget frontier under per-qubit heterogeneity
