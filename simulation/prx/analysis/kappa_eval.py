@@ -27,6 +27,25 @@ def per_cell(run_dir: Path) -> pd.DataFrame:
     return pc[["distance", "rounds", "p", "sigma_h", "draw", "n_cal", "excess", "beats_static", "static_excess"]]
 
 
+def individual_harm(run_dir: Path) -> pd.DataFrame:
+    """Fraction of individual fits whose held-out risk exceeds the uncalibrated prior's.
+
+    This is E_C 1{R(theta_C) > R_0}, not 1{E_C R(theta_C) > R_0}: the two differ, and the
+    second is what ``beats_static`` in budget_per_condition.csv reports.
+    """
+    key = ["distance", "rounds", "p_true", "noise_extra_json"]
+    d = pd.read_csv(run_dir / "rows.csv",
+                    usecols=key + ["estimator", "n_cal_shots", "replicate", "n_errors", "n_test_shots"])
+    ref = (d[d.estimator == "static"].groupby(key)
+           .apply(lambda g: g.n_errors.sum() / g.n_test_shots.sum(), include_groups=False))
+    f = d[d.estimator == "pooled_shrink"].copy()
+    f["ref"] = list(ref.loc[list(map(tuple, f[key].values))])
+    f["worse"] = f.n_errors / f.n_test_shots > f.ref
+    return (f.groupby("n_cal_shots")
+            .agg(harm_ind=("worse", "mean"), n_fits=("worse", "size"))
+            .reset_index().rename(columns={"n_cal_shots": "n_cal"}))
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("published", type=Path)
@@ -57,6 +76,15 @@ def main() -> None:
     harm = m.groupby("n_cal").agg(harm_k5=("beats_static_k5", lambda x: 1 - x.mean()),
                                   harm_kt=("beats_static_kt", lambda x: 1 - x.mean()),
                                   median_excess_k5=("excess_k5", "median"), median_excess_kt=("excess_kt", "median"))
+    # The columns above average the calibration replicates within a condition and then ask
+    # whether that mean is worse than the uncalibrated prior. A reader deploys one fit, so we
+    # also count how often a single fit is worse, from the primitive rows of both runs.
+    ind = individual_harm(a.published).merge(individual_harm(a.tuned), on="n_cal",
+                                             suffixes=("_k5", "_kt")).set_index("n_cal")
+    harm["harm_ind_k5"] = ind.harm_ind_k5
+    harm["harm_ind_kt"] = ind.harm_ind_kt
+    harm["n_fits"] = ind.n_fits_k5
+    assert (ind.n_fits_k5 == ind.n_fits_kt).all(), "the two runs hold different numbers of fits"
     harm.to_csv(a.tuned / "kappa_eval_by_budget.csv")
     res = {"criterion_kappa5": c5, "criterion_kappa_star": ct, "difference": ct - c5, "diff_lo95": float(lo),
            "diff_hi95": float(hi), "conditions": int(m[k[:5]].drop_duplicates().shape[0]),
