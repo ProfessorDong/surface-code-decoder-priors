@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+message: "If you use this software or these result tables, please cite the paper below."
+title: "surface-code-decoder-priors"
+abstract: >-
+  Simulation code, experiment runners, seeded run manifests, analysis scripts and
+  result tables for a study of when fitting a matching decoder's prior from
+  syndrome data helps and when it hurts, with a script that recomputes every
+  number quoted in the accompanying paper from the archived tables.
+type: software
+license: Apache-2.0
+repository-code: "https://github.com/ProfessorDong/surface-code-decoder-priors"
+authors:
+  - family-names: Dong
+    given-names: Liang
+    orcid: "https://orcid.org/0000-0002-8585-1087"
+    affiliation: "Department of Electrical and Computer Engineering, Baylor University"
+    email: Liang_Dong@baylor.edu
+keywords:
+  - quantum error correction
+  - surface code
+  - minimum-weight perfect matching
+  - decoder calibration
+  - detector error model
+preferred-citation:
+  type: article
+  title: "When Calibration Helps Surface-Code Matching Decoders"
+  authors:
+    - family-names: Dong
+      given-names: Liang
+      orcid: "https://orcid.org/0000-0002-8585-1087"
+      affiliation: "Department of Electrical and Computer Engineering, Baylor University"
+  year: 2026
+  notes: "Submitted to PRX Quantum." 

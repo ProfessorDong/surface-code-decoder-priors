@@ -4,6 +4,8 @@
 !/.gitignore
 !/LICENSE
 !/README.md
+!/CITATION.cff
+!/.zenodo.json
 
 # ---- code -------------------------------------------------------------
 !/simulation/

@@ -1,0 +1,32 @@
+{
+  "upload_type": "software",
+  "title": "surface-code-decoder-priors: code, result tables and number-verification script for \"When Calibration Helps Surface-Code Matching Decoders\"",
+  "creators": [
+    {
+      "name": "Dong, Liang",
+      "affiliation": "Department of Electrical and Computer Engineering, Baylor University, Waco, Texas, USA",
+      "orcid": "0000-0002-8585-1087"
+    }
+  ],
+  "description": "<p>Simulation code, experiment runners, seeded run manifests, analysis scripts and the complete result tables behind the manuscript <em>When Calibration Helps Surface-Code Matching Decoders</em>, together with the verification script that recomputes every number quoted in the paper from those tables and fails on any mismatch.</p><p>The study measures when fitting a matching decoder's prior from syndrome data helps and when it hurts: exact logical risk for short surface-code memories, a branch-and-bound bound over a continuous family of per-class priors, the calibration-budget frontier under per-qubit heterogeneity, the population limit of the pairwise correlation estimator, and a prior-versus-decoder factorial on Google's public Willow release.</p><p>The bit-packed per-shot outcome records, which are needed only to recompute the paired statistics shot by shot, are deposited separately; see the related identifiers. The Willow hardware release itself is not redistributed here and is public at Zenodo record 13273331.</p>",
+  "access_right": "open",
+  "license": "Apache-2.0",
+  "keywords": [
+    "quantum error correction",
+    "surface code",
+    "minimum-weight perfect matching",
+    "decoder calibration",
+    "detector error model",
+    "noise estimation",
+    "reproducibility"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "10.5281/zenodo.13273331",
+      "relation": "references",
+      "resource_type": "dataset",
+      "scheme": "doi"
+    }
+  ],
+  "language": "eng"
+}

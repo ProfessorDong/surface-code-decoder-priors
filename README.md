@@ -1,4 +1,8 @@
-# When calibration helps a surface-code matching decoder
+# When Calibration Helps Surface-Code Matching Decoders
+
+Code, result tables and number-verification script for the manuscript
+**"When Calibration Helps Surface-Code Matching Decoders"** (Liang Dong),
+submitted to *PRX Quantum*.
 
 Code and result tables for a study of *decoder priors*: what a prior fitted from
 syndromes is worth to a minimum-weight matching decoder, for whom, and at what data
@@ -19,7 +23,8 @@ cost. Three strands:
    with that data.
 
 Author: Liang Dong (Baylor University, Department of Electrical and Computer
-Engineering).
+Engineering), <Liang_Dong@baylor.edu>, ORCID
+[0000-0002-8585-1087](https://orcid.org/0000-0002-8585-1087).
 
 ## Layout
 
