@@ -45,12 +45,14 @@ def main():
         cert = pd.read_csv(RES / fname).set_index("p").sort_index()
         ex = exact[exact["T"] == T]
         scan = ex.groupby("p").gain.max()
-        rml = ex.groupby("p").R_ml.first()
-        rph = ex.groupby("p").R_phys.first()
+        # the exact risks come from the enumeration table, which covers the rates the
+        # branch-and-bound search reached as well as the ones the scan visited
+        lim = pd.read_csv(RES / "moment_limit_exact.csv").set_index(["T", "p"]).sort_index()
+        rml = lim.loc[T].R_ml
+        rph = lim.loc[T].R_phys
 
-        # panel (a) and (b) only exist where the exact ML risk was computed
-        rates = [p for p in sorted(ex.p.unique())]
-        best = {p: max(float(scan[p]), float(cert.gain_UB_certified[p])) for p in rates}
+        rates = [float(p) for p in rml.index]
+        best = {p: max(float(scan.get(p, -1.0)), float(cert.gain_UB_certified[p])) for p in rates}
 
         write(BEST_PANEL_A[T], [(p, 100.0 * (1.0 - best[p])) for p in rates])
         write(ML_PANEL_A[T], [(p, 100.0 * rml[p] / rph[p]) for p in rates])

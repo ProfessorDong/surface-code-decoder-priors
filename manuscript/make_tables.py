@@ -56,24 +56,29 @@ def best_found() -> pd.Series:
 
 
 def tab_exact() -> str:
-    """Table I: untruncated risks of the best-found per-class priors, T = 2 and T = 3."""
+    """Table I: untruncated risks of the best-found per-class priors, T = 2 and T = 3.
+
+    The row set is the operating points at which the exact distribution was enumerated,
+    which is moment_limit_exact.csv: the coordinate scan's rates, plus the rates the
+    branch-and-bound search reached that the scan never visited.
+    """
     d = pd.read_csv(TH / "exact_candidates_untruncated.csv")
     bf = best_found()
-    # exact gain of the pairwise correlation fit with unlimited data (theory.moment_limit_exact)
-    lim = pd.read_csv(TH / "moment_limit_exact.csv").set_index(["T", "p"])
+    # exact risks of the physical prior, the correlation limit and the ML decoder
+    lim = pd.read_csv(TH / "moment_limit_exact.csv").set_index(["T", "p"]).sort_index()
     lines = []
     for T in (2, 3):
-        sub = d[d["T"] == T].sort_values("p")
         first = True
-        for p, g in sub.groupby("p", sort=True):
-            # the best found candidate at this point (the robustness re-test can improve on the scan)
-            r = g.loc[g.gain.idxmax()]
-            lr = lim.loc[(T, p)]
-            assert abs(lr.R_phys - r.R_phys) < 1e-12 * max(1.0, r.R_phys) + 1e-15, "R_phys mismatch"
+        for (_, p), lr in lim.loc[T:T].iterrows():
+            scan = d[(d["T"] == T) & (d.p == p)]
+            if len(scan):                                # cross-check the two enumerations
+                r = scan.loc[scan.gain.idxmax()]
+                assert abs(lr.R_phys - r.R_phys) < 1e-12 * max(1.0, r.R_phys) + 1e-15, "R_phys mismatch"
+                assert abs(lr.gap_to_ml - r.gap_to_ml) < 1e-9, "gap-to-ML mismatch"
             gain = float(bf.loc[(T, p)])                 # scan or branch-and-bound incumbent
-            lines.append(" & ".join([f"${T}$" if first else "", ptex(p), sci(r.R_phys), pct(gain, 3),
-                                     pct(lr.gain_limit, 3), pct(r.gap_to_ml, 1),
-                                     pct(gain / r.gap_to_ml, 1)]) + r" \\")
+            lines.append(" & ".join([f"${T}$" if first else "", ptex(p), sci(lr.R_phys), pct(gain, 3),
+                                     pct(lr.gain_limit, 3), pct(lr.gap_to_ml, 1),
+                                     pct(gain / lr.gap_to_ml, 1)]) + r" \\")
             first = False
         if T == 2:
             lines.append(r"\hline")

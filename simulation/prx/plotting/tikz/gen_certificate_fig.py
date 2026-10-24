@@ -38,11 +38,16 @@ def write(name, rows):
 def main():
     OUT.mkdir(exist_ok=True)
     exact = pd.read_csv(RES / "exact_candidates_untruncated.csv")
+    # the maximum-likelihood risk at a point the coordinate scan never visited is still
+    # exact, and the attribution run computes it, so take R_ml from both sources
+    att = pd.read_csv(RES / "reweight_mechanism.csv")
     for T, fname in CERT.items():
         cert = pd.read_csv(RES / fname).set_index("p").sort_index()
         ex = exact[exact["T"] == T]
         scan = ex.groupby("p").gain.max()
         rml = ex.groupby("p").R_ml.first()
+        extra = att[att["T"] == T].set_index("p").R_ml_full
+        rml = pd.concat([rml, extra[~extra.index.isin(rml.index)]]).sort_index()
         best = {p: max(float(scan.get(p, -1.0)), float(cert.gain_UB_certified[p])) for p in cert.index}
 
         write(f"T{T}_ceiling", [(p, 100.0 * (1.0 - cert.LB[p] / cert.R_phys[p])) for p in cert.index])
