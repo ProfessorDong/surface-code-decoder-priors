@@ -4,6 +4,10 @@ Code, result tables and number-verification script for the manuscript
 **"When Calibration Helps Surface-Code Matching Decoders"** (Liang Dong),
 submitted to *PRX Quantum*.
 
+[![code DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23627286.svg)](https://doi.org/10.5281/zenodo.23627286)
+[![data DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23627426.svg)](https://doi.org/10.5281/zenodo.23627426)
+[![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 Code and result tables for a study of *decoder priors*: what a prior fitted from
 syndromes is worth to a minimum-weight matching decoder, for whom, and at what data
 cost. Three strands:
@@ -96,12 +100,18 @@ a quoted phrase to appear in the text report themselves as skipped.
 Two things are deliberately not in this repository:
 
 * **Per-shot error vectors.** Each run also writes bit-packed per-shot decoder outcomes
-  (tens of thousands of files, several hundred megabytes). They are needed only to
-  recompute the paired statistics from scratch, and are available on request.
+  (40,437 files, 603 MB compressed). They are needed only to recompute the paired
+  statistics from scratch, and are deposited separately at
+  [10.5281/zenodo.23627426](https://doi.org/10.5281/zenodo.23627426), with the record
+  format documented there.
 * **The Willow hardware archive**, which belongs to Google and is public at Zenodo
   record 13273331.
 
 ## License
 
-Apache License 2.0; see `LICENSE`. If you use this code or these tables, please cite
-the accompanying paper.
+Apache License 2.0 for this repository; see `LICENSE`. The separately deposited
+per-shot records are CC-BY-4.0. If you use this code or these tables, please cite the
+accompanying paper; see `CITATION.cff`.
+
+Archived releases of this repository:
+[10.5281/zenodo.23627286](https://doi.org/10.5281/zenodo.23627286) (all versions).
