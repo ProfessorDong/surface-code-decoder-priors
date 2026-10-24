@@ -46,6 +46,49 @@ def individual_harm(run_dir: Path) -> pd.DataFrame:
             .reset_index().rename(columns={"n_cal_shots": "n_cal"}))
 
 
+def individual_harm_seed_ci(published: Path, tuned: Path, boot: int = 20000) -> pd.DataFrame:
+    """Seed-resampled interval for the change in individual-fit harm, per budget.
+
+    The two runs decode identical shots, so the comparison is paired fit by fit. The
+    resampling unit is the disorder seed, within each heterogeneity stratum, because
+    seeds are what the conditions share; the observed held-out signs are held fixed, so
+    this propagates variation across devices and not test-shot noise, and it is not an
+    interval for the probability that the true risk increases.
+    """
+    key = ["distance", "rounds", "p_true", "noise_extra_json"]
+
+    def fits(run: Path) -> pd.DataFrame:
+        d = pd.read_csv(run / "rows.csv",
+                        usecols=key + ["estimator", "replicate", "n_cal_shots", "n_errors"])
+        ref = (d[d.estimator == "static"][key + ["n_errors"]]
+               .rename(columns={"n_errors": "ref_errors"}))
+        v = d[d.estimator == "pooled_shrink"].merge(ref, on=key, validate="many_to_one")
+        v["harm"] = v.n_errors > v.ref_errors
+        return v[key + ["replicate", "n_cal_shots", "harm"]]
+
+    m = fits(published).merge(fits(tuned), on=key + ["replicate", "n_cal_shots"],
+                              suffixes=("_k5", "_kt"), validate="one_to_one")
+    extra = m.noise_extra_json.map(json.loads)
+    m["sigma_h"] = extra.map(lambda x: x["sigma_h"])
+    m["draw"] = extra.map(lambda x: x["het_seed"])
+    rng = np.random.default_rng(stable_seed("kappa_eval_harm_seeds"))
+    rows = []
+    for n, d in m.groupby("n_cal_shots"):
+        per_seed = d.groupby(["sigma_h", "draw"])[["harm_k5", "harm_kt"]].mean()
+        acc = np.zeros((boot, 2))
+        strata = list(per_seed.groupby("sigma_h"))
+        for _, g in strata:
+            v = g.values
+            acc += v[rng.integers(0, len(v), size=(boot, len(v)))].mean(axis=1) / len(strata)
+        dif = acc[:, 1] - acc[:, 0]
+        rows.append({"n_cal": int(n),
+                     "harm_ind_delta": float(d.harm_kt.mean() - d.harm_k5.mean()),
+                     "harm_ind_delta_lo95": float(np.quantile(dif, 0.025)),
+                     "harm_ind_delta_hi95": float(np.quantile(dif, 0.975)),
+                     "harm_seeds": int(per_seed.shape[0])})
+    return pd.DataFrame(rows).set_index("n_cal")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("published", type=Path)
@@ -85,6 +128,9 @@ def main() -> None:
     harm["harm_ind_kt"] = ind.harm_ind_kt
     harm["n_fits"] = ind.n_fits_k5
     assert (ind.n_fits_k5 == ind.n_fits_kt).all(), "the two runs hold different numbers of fits"
+    ci = individual_harm_seed_ci(a.published, a.tuned)
+    for col in ci.columns:
+        harm[col] = ci[col]
     harm.to_csv(a.tuned / "kappa_eval_by_budget.csv")
     res = {"criterion_kappa5": c5, "criterion_kappa_star": ct, "difference": ct - c5, "diff_lo95": float(lo),
            "diff_hi95": float(hi), "conditions": int(m[k[:5]].drop_duplicates().shape[0]),
