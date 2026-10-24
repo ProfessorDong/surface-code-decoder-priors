@@ -54,6 +54,20 @@ python -m simulation.prx.experiments.frontier --profile main --workers 16 --labe
 python -m simulation.prx.experiments.willow --workers 16 --label primary
 ```
 
+Three smaller scripts establish the claims the analyses rest on, and write their
+own tables under `results/theory`:
+
+```bash
+# what the graphlike projection discards, over every model the study uses
+python -m simulation.prx.theory.decomposition_census
+
+# the pairwise estimator's population target, against the estimator itself
+python -m simulation.prx.theory.population_target
+
+# what the best prior changes, decision by decision, on every syndrome
+python -m simulation.prx.theory.reweight_mechanism
+```
+
 Long runs hold a `flock` so that two copies cannot race on the same output files.
 
 ## Data
