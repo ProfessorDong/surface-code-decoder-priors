@@ -10,9 +10,11 @@ A. A frozen calibration fit. Each calibration replicate is one fitted prior,
    evaluated on fixed test shots. For a frozen fit the exact McNemar test on the
    summed per-shot discordances is a valid conditional test: shots are
    independent within and across leaves, and under the null each discordant shot
-   is equally likely to favour either prior. Replicate 0 is the predeclared
-   primary fit (the first contiguous calibration prefix); the other four are
-   reported alongside it.
+   is equally likely to favour either prior. Replicate 0 is the primary fit (the
+   first contiguous calibration prefix); the other four are reported alongside it.
+   The plan of 17 Sep 2026 did NOT name a prefix -- that choice, and the split into
+   the two estimands below, were made after the run -- so replicate 0 is primary by
+   a post hoc convention, not a predeclared one.
 
 B. The fitting procedure. The quantity of interest is the expected effect over
    calibration draws. Its uncertainty is estimated by a bootstrap that resamples

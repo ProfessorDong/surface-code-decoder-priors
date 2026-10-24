@@ -22,8 +22,16 @@ and the risk at any point s is bounded above by evaluating the decision there, c
 exact ties as failures. Best-first branch and bound over boxes then returns an interval
 [LB*, UB*] containing the minimum of the risk over B; UB* is attained (up to ties) by a
 recorded prior. Everything is evaluated over every syndrome of the enumerated model
-(no truncation). A margin ``tol`` on weight comparisons makes near-ties ambiguous, which
-only lowers LB, so floating-point error cannot make the bound invalid.
+(no truncation). A margin ``tol`` on weight comparisons makes near-ties ambiguous,
+which only lowers LB and so loosens the bound against the rounding we expect at this
+scale.
+
+Scope of the guarantee. The argument above is a proof in real arithmetic. The
+implementation runs in float64 and does NOT carry an error enclosure through the
+logarithms, the (min, +) recursion or the risk summations, so the numbers it returns
+are numerically validated bounds, not interval-enclosed ones; the comparison margin
+is not claimed to dominate every rounding error. Closing that gap means bounding the
+endpoint-weight and summation errors and subtracting them from LB.
 """
 from __future__ import annotations
 
