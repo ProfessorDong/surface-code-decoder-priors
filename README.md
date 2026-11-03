@@ -2,7 +2,7 @@
 
 Code, result tables and number-verification script for the manuscript
 **"When Calibration Helps Surface-Code Matching Decoders"** (Liang Dong),
-submitted to *PRX Quantum*.
+submitted to *Physical Review A*.
 
 [![code DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23627286.svg)](https://doi.org/10.5281/zenodo.23627286)
 [![data DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23627426.svg)](https://doi.org/10.5281/zenodo.23627426)
