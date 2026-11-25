@@ -1,0 +1,49 @@
+# Deny by default: nothing is published unless it is named below.
+/*
+
+!/.gitignore
+!/LICENSE
+!/README.md
+!/CITATION.cff
+!/.zenodo.json
+
+# ---- code -------------------------------------------------------------
+!/simulation/
+/simulation/*
+!/simulation/__init__.py
+!/simulation/prx/
+!/simulation/tests/
+/simulation/tests/*
+!/simulation/tests/__init__.py
+!/simulation/tests/test_prx_*.py
+
+# ---- the checking script: re-derives every quoted number from the tables
+!/manuscript/
+/manuscript/*
+!/manuscript/verify_numbers.py
+!/manuscript/make_tables.py
+
+# ---- results: tables, manifests and logs ------------------------------
+!/research/
+/research/*
+!/research/results/
+!/research/preregistration/
+/research/preregistration/*
+!/research/preregistration/kappa_tuning_protocol.md
+!/research/preregistration/kappa_tuning_protocol.sha256
+
+# ---- never published --------------------------------------------------
+# per-shot error vectors (hundreds of MB): deposited separately
+**/errors/
+*.npz
+# manuscript sources, reference PDFs, hardware archives, model weights
+*.tex
+*.pdf
+**/__pycache__/
+*.pyc
+*.pids
+# ad hoc run queues: machine-specific paths and PIDs, superseded by the README
+/research/results/*.sh
+/research/results/*.disabled-selfmatch
+# run logs: contain absolute paths from the machine they ran on
+*.log

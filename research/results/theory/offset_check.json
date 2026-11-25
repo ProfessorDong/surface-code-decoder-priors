@@ -1,0 +1,85 @@
+{
+  "config": {
+    "family": "si1000",
+    "variant": "google2025",
+    "distance": 5,
+    "rounds": 5,
+    "p": 0.002,
+    "shots": 200000,
+    "seed": 20261125,
+    "stim": "1.15.0",
+    "pymatching": "2.3.1"
+  },
+  "weight_rescale_predictions_changed": {
+    "1e-06": 0,
+    "1e-05": 0,
+    "0.0001": 0,
+    "0.001": 0,
+    "0.01": 0,
+    "0.1": 0,
+    "1": 0,
+    "10": 0,
+    "100": 0,
+    "1000": 0,
+    "10000": 0,
+    "100000": 0,
+    "1e+06": 0,
+    "2e+06": 0
+  },
+  "weight_rescale_max_changed": 0,
+  "errors": {
+    "0.25": 828,
+    "0.5": 827,
+    "1.0": 839,
+    "2.0": 861,
+    "4.0": 959,
+    "offset_f4": 949
+  },
+  "rescale_f4_change_percent": 14.30274135876044,
+  "offset_f4_change_percent": 13.110846245530382,
+  "offset_vs_rescale_disagreements": 16,
+  "offset_vs_rescale_disagreements_equal_size": 5,
+  "offset_flips_vs_physical": 224,
+  "offset_flips_vs_physical_equal_size": 0,
+  "mean_edge_set_size_all_shots": {
+    "0.25": 3.786835,
+    "0.5": 3.78838,
+    "1.0": 3.7921,
+    "2.0": 3.807275,
+    "4.0": 3.85145
+  },
+  "max_scaled_edge_probability_f4": 0.14296474293409264,
+  "exact_surface_d3_T2_p0.002": {
+    "detectors": 16,
+    "mass": 1.0000000000000027,
+    "risk_f1": 0.007088987133812457,
+    "change_percent": {
+      "4.0": 0.925987081402746
+    },
+    "max_scaled_p": {
+      "4.0": 0.20043680111890463
+    }
+  },
+  "exact_repetition_d5_T3_p0.05": {
+    "detectors": 16,
+    "mass": 0.9999999999999997,
+    "risk_f1": 0.00847357030950135,
+    "change_percent": {
+      "0.1": 0.0,
+      "0.25": 0.0,
+      "0.5": 0.0,
+      "0.75": 0.0,
+      "1.5": -1.726945327851226e-05,
+      "2.0": -0.0011622639539576873
+    },
+    "max_scaled_p": {
+      "0.1": 0.005000000000000001,
+      "0.25": 0.0125,
+      "0.5": 0.025,
+      "0.75": 0.037500000000000006,
+      "1.5": 0.07500000000000001,
+      "2.0": 0.1
+    }
+  },
+  "seconds": 11.488643646240234
+}
