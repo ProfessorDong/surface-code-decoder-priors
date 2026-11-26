@@ -3,6 +3,7 @@
 Code, result tables and number-verification script for the manuscript
 **"When Calibration Helps Surface-Code Matching Decoders"** (Liang Dong).
 
+[![code DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24545947.svg)](https://doi.org/10.5281/zenodo.24545947)
 [![data DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24545303.svg)](https://doi.org/10.5281/zenodo.24545303)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
@@ -139,3 +140,6 @@ Two things are deliberately not in this repository:
 Apache License 2.0 for this repository; see `LICENSE`. The separately deposited
 per-shot records are CC-BY-4.0. If you use this code or these tables, please cite the
 accompanying paper; see `CITATION.cff`.
+
+Archived releases of this repository:
+[10.5281/zenodo.24545947](https://doi.org/10.5281/zenodo.24545947) (all versions).
